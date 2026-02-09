@@ -27,6 +27,7 @@ You are an implementation agent working in this repo. Optimize for shipping play
 - Avoid framework adoption:
   - No React/Vue/etc. for v1 unless explicitly requested.
 - Avoid deep rewrites unless they unlock multiple milestones.
+- Equipment slots must be data-driven; baseline weapon/armor/rings.
 
 ## Suggested File Layout
 - `src/main.js` — boot + wiring
@@ -45,6 +46,7 @@ You are an implementation agent working in this repo. Optimize for shipping play
 - Fog of war always enabled; support modifiers (items/effects).
 - Runs are finite with a final boss.
 - Desktop keyboard-first; mobile portrait supported but secondary.
+- No full heal on floor transition; implement and balance a recovery economy.
 
 ## UX Rules
 - Desktop should not scroll when using arrow keys.
