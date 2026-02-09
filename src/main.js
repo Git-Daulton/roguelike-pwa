@@ -1,10 +1,27 @@
 import './style.css'
 
-// --- Canvas + DPI setup ---
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d", { alpha: false });
+function fatal(msg, err) {
+  console.error(msg, err)
+  document.body.innerHTML = `
+    <div style="padding:16px;font-family:monospace;background:#070a0e;color:#e6edf3;">
+      <h2>Boot error</h2>
+      <pre>${msg}${err ? '\n\n' + (err.stack || err) : ''}</pre>
+    </div>
+  `
+}
 
-// ...rest of your roguelike code...
+// --- Canvas + DPI setup ---
+const canvas = document.getElementById('c')
+if (!canvas) fatal('Canvas #c not found. index.html must include <canvas id="c"> and nothing should overwrite #app.')
+
+let ctx = null
+try {
+  ctx = canvas.getContext('2d', { alpha: false })
+  if (!ctx) fatal('2D context unavailable (ctx is null).')
+} catch (e) {
+  fatal('Failed to create 2D context.', e)
+}
+
 
 function resizeCanvasToCSSPixels() {
   const dpr = Math.max(1, window.devicePixelRatio || 1);
