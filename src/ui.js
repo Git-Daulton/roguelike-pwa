@@ -15,8 +15,10 @@ let quitButton = null;
 let hudRoot = null;
 let hudHpLine = null;
 let hudFloorLine = null;
+let hudGoldLine = null;
 let hudInventorySlots = [];
 let hudLogList = null;
+let onUseInventorySlot = () => {};
 
 function normalizeSeed(value) {
   const trimmed = String(value || "").trim();
@@ -189,8 +191,9 @@ export function setInRunUIVisible(isVisible) {
   quitButton.classList.toggle("is-visible", Boolean(isVisible));
 }
 
-export function mountHud() {
+export function mountHud({ onUseInventorySlot: onUseSlot } = {}) {
   if (hudRoot) return;
+  if (typeof onUseSlot === "function") onUseInventorySlot = onUseSlot;
   hudRoot = document.getElementById("hud");
   if (!hudRoot) return;
 
@@ -204,9 +207,12 @@ export function mountHud() {
   hudHpLine.className = "hud-line";
   hudFloorLine = document.createElement("div");
   hudFloorLine.className = "hud-line";
+  hudGoldLine = document.createElement("div");
+  hudGoldLine.className = "hud-line";
   playerBlock.appendChild(playerTitle);
   playerBlock.appendChild(hudHpLine);
   playerBlock.appendChild(hudFloorLine);
+  playerBlock.appendChild(hudGoldLine);
 
   const invBlock = document.createElement("section");
   invBlock.className = "hud-block";
@@ -218,7 +224,8 @@ export function mountHud() {
   for (let i = 0; i < 9; i++) {
     const slot = document.createElement("div");
     slot.className = "hud-slot";
-    slot.textContent = "—";
+    slot.dataset.slot = String(i);
+    slot.addEventListener("click", () => onUseInventorySlot(i));
     hudInventorySlots.push(slot);
     invGrid.appendChild(slot);
   }
@@ -255,7 +262,10 @@ export function renderHud(snapshot) {
   if (!snapshot) {
     if (hudHpLine) hudHpLine.textContent = "HP: —/—";
     if (hudFloorLine) hudFloorLine.textContent = "Floor: —/—";
-    for (const slot of hudInventorySlots) slot.textContent = "—";
+    if (hudGoldLine) hudGoldLine.textContent = "Gold: —";
+    for (let i = 0; i < hudInventorySlots.length; i++) {
+      hudInventorySlots[i].textContent = `${i + 1}: —`;
+    }
     if (hudLogList) {
       hudLogList.innerHTML = "";
       const li = document.createElement("li");
@@ -267,10 +277,12 @@ export function renderHud(snapshot) {
 
   if (hudHpLine) hudHpLine.textContent = `HP: ${snapshot.player.hp}/${snapshot.player.maxHp}`;
   if (hudFloorLine) hudFloorLine.textContent = `Floor: ${snapshot.run.currentFloor}/${snapshot.run.totalFloors}`;
+  if (hudGoldLine) hudGoldLine.textContent = `Gold: ${snapshot.player.currency}`;
 
   for (let i = 0; i < hudInventorySlots.length; i++) {
     const value = snapshot.inventory[i];
-    hudInventorySlots[i].textContent = value && value.length > 0 ? value : "—";
+    const label = value && value.type === "potion" ? value.label : "—";
+    hudInventorySlots[i].textContent = `${i + 1}: ${label}`;
   }
 
   if (hudLogList) {

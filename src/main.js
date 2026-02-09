@@ -1,5 +1,5 @@
 import './style.css'
-import { startGame, stopGame, subscribeGameSnapshot } from './game'
+import { startGame, stopGame, subscribeGameSnapshot, useInventorySlot } from './game'
 import { hideMenu, mountHud, mountMenu, renderHud, setInRunUIVisible, setQuitHandler, showMenu } from './ui'
 
 let runActive = false
@@ -32,7 +32,7 @@ window.addEventListener('keydown', (e) => {
 }, { passive: false })
 
 mountMenu({ onStart: startRun })
-mountHud()
+mountHud({ onUseInventorySlot: useInventorySlot })
 setQuitHandler(quitToMenu)
 setInRunUIVisible(false)
 renderHud(null)

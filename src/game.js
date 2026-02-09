@@ -66,6 +66,8 @@ const state = {
   py: 2,
   php: 10,
   pMax: 10,
+  currency: 0,
+  inventory: [],
 
   // Enemy (single)
   ex: 0,
@@ -131,9 +133,12 @@ function logPush(s) {
 function getSnapshot() {
   const totalFloors = activeRunConfig?.floorPlan?.floors ?? 1;
   return {
-    player: { hp: state.php, maxHp: state.pMax },
+    player: { hp: state.php, maxHp: state.pMax, currency: state.currency },
     run: { currentFloor: 1, totalFloors },
-    inventory: Array(9).fill(""),
+    inventory: state.inventory.map((slot) => {
+      if (!slot) return { type: null, label: "" };
+      return { type: slot.type, label: slot.label };
+    }),
     log: state.log.slice(-state.logMax),
   };
 }
@@ -199,6 +204,8 @@ function placeEnemyFarFromPlayer() {
 function generateDungeon() {
   fillWalls();
   state.log = [];
+  state.currency = 0;
+  state.inventory = Array(9).fill(null);
 
   const rooms = [];
   const maxRooms = 22;
@@ -478,6 +485,50 @@ function enemyTurn() {
   state.ey = step.ny;
 }
 
+function findFirstEmptyInventorySlot() {
+  for (let i = 0; i < state.inventory.length; i++) {
+    if (!state.inventory[i]) return i;
+  }
+  return -1;
+}
+
+function grantEnemyLoot() {
+  const gold = randInt(4, 12);
+  state.currency += gold;
+  logPush(`Loot: +${gold} gold.`);
+
+  const slot = findFirstEmptyInventorySlot();
+  if (slot === -1) {
+    logPush("Loot dropped: Health potion lost (inventory full).");
+    return;
+  }
+
+  state.inventory[slot] = { type: "potion", label: "HP" };
+  logPush(`Loot: Health potion added to slot ${slot + 1}.`);
+}
+
+function tryUsePotion(slotIndex) {
+  if (!running) return false;
+  if (state.php === 0) return false;
+  if (slotIndex < 0 || slotIndex >= state.inventory.length) return false;
+
+  const slot = state.inventory[slotIndex];
+  if (!slot || slot.type !== "potion") return false;
+
+  const prev = state.php;
+  state.php = Math.min(state.pMax, state.php + 4);
+  state.inventory[slotIndex] = null;
+  const healed = state.php - prev;
+  logPush(`Used potion from slot ${slotIndex + 1} (+${healed} HP).`);
+  draw();
+  emitSnapshot();
+  return true;
+}
+
+export function useInventorySlot(slotIndex) {
+  tryUsePotion(slotIndex);
+}
+
 // --- Player action / turn loop ---
 function playerAct(type, dx = 0, dy = 0) {
   if (state.php === 0) return;
@@ -495,6 +546,7 @@ function playerAct(type, dx = 0, dy = 0) {
       if (state.ehp === 0) {
         state.eAlive = false;
         logPush("Enemy defeated.");
+        grantEnemyLoot();
       }
       acted = true;
     } else if (isWalkable(nx, ny)) {
@@ -667,6 +719,10 @@ function bindControls() {
   const onWindowKeyDown = (e) => {
     const k = e.key;
     if (preventKeys.has(k)) e.preventDefault();
+    if (k >= "1" && k <= "9") {
+      tryUsePotion(Number(k) - 1);
+      return;
+    }
     if (k === "ArrowUp") handleAction("up");
     else if (k === "ArrowDown") handleAction("down");
     else if (k === "ArrowLeft") handleAction("left");
