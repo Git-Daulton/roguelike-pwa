@@ -31,6 +31,7 @@ body {
   height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
   padding-top: var(--safe-t);
 }
 
@@ -104,4 +105,94 @@ html.touch #controls {
 .btn:active {
   transform: translateY(1px);
   background: rgba(255, 255, 255, 0.10);
+}
+
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(7, 10, 14, 0.78);
+  backdrop-filter: blur(4px);
+}
+
+.menu-overlay.is-hidden {
+  display: none;
+}
+
+.menu-card {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #101720;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.menu-title {
+  margin: 0 0 6px;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.menu-run-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.menu-btn {
+  min-height: 42px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.menu-btn.is-selected {
+  border-color: rgba(110, 220, 160, 0.65);
+  background: rgba(110, 220, 160, 0.16);
+}
+
+.menu-btn-start {
+  min-height: 46px;
+}
+
+.menu-seed-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: #b8c7d7;
+}
+
+.menu-seed {
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--fg);
+  padding: 0 10px;
+}
+
+.inrun-quit {
+  position: fixed;
+  top: calc(12px + var(--safe-t));
+  right: 12px;
+  z-index: 25;
+  display: none;
+  min-width: 128px;
+}
+
+html.touch .inrun-quit.is-visible {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
