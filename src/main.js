@@ -619,6 +619,11 @@ function draw() {
 }
 
 // --- Input wiring ---
+function applyTouchClass() {
+  const isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+  document.documentElement.classList.toggle("touch", isTouch);
+}
+
 function bindControls() {
   const controls = document.getElementById("controls");
   controls.addEventListener("click", (e) => {
@@ -628,14 +633,16 @@ function bindControls() {
   });
   controls.addEventListener("contextmenu", (e) => e.preventDefault());
 
+  const preventKeys = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "]);
   window.addEventListener("keydown", (e) => {
     const k = e.key;
+    if (preventKeys.has(k)) e.preventDefault();
     if (k === "ArrowUp") handleAction("up");
     else if (k === "ArrowDown") handleAction("down");
     else if (k === "ArrowLeft") handleAction("left");
     else if (k === "ArrowRight") handleAction("right");
     else if (k === " " || k === "Enter") handleAction("wait");
-  });
+  }, { passive: false });
 }
 
 function handleAction(act) {
@@ -651,6 +658,7 @@ function handleAction(act) {
 
 // --- Boot ---
 function boot() {
+  applyTouchClass();
   allocBuffers();
   bindControls();
   generateDungeon();
