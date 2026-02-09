@@ -19,6 +19,11 @@ let hudGoldLine = null;
 let hudInventorySlots = [];
 let hudLogList = null;
 let onUseInventorySlot = () => {};
+let onToggleDebugMenu = () => {};
+let debugMenuRoot = null;
+let debugForm = null;
+let onUpdateDebugSettings = () => {};
+let onSpawnEnemy = () => {};
 
 function normalizeSeed(value) {
   const trimmed = String(value || "").trim();
@@ -191,9 +196,10 @@ export function setInRunUIVisible(isVisible) {
   quitButton.classList.toggle("is-visible", Boolean(isVisible));
 }
 
-export function mountHud({ onUseInventorySlot: onUseSlot } = {}) {
+export function mountHud({ onUseInventorySlot: onUseSlot, onToggleDebug } = {}) {
   if (hudRoot) return;
   if (typeof onUseSlot === "function") onUseInventorySlot = onUseSlot;
+  if (typeof onToggleDebug === "function") onToggleDebugMenu = onToggleDebug;
   hudRoot = document.getElementById("hud");
   if (!hudRoot) return;
 
@@ -248,10 +254,17 @@ export function mountHud({ onUseInventorySlot: onUseSlot } = {}) {
   minimapBtn.textContent = "Minimap (Soon)";
   minimapBtn.addEventListener("click", () => {});
 
+  const debugBtn = document.createElement("button");
+  debugBtn.type = "button";
+  debugBtn.className = "hud-debug";
+  debugBtn.textContent = "Debug";
+  debugBtn.addEventListener("click", () => onToggleDebugMenu());
+
   hudRoot.appendChild(playerBlock);
   hudRoot.appendChild(invBlock);
   hudRoot.appendChild(logBlock);
   hudRoot.appendChild(minimapBtn);
+  hudRoot.appendChild(debugBtn);
 
   renderHud(null);
 }
@@ -294,4 +307,107 @@ export function renderHud(snapshot) {
       hudLogList.appendChild(li);
     }
   }
+}
+
+function makeDebugRow(labelText, name) {
+  const row = document.createElement("label");
+  row.className = "debug-row";
+  row.textContent = labelText;
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.name = name;
+  input.className = "debug-input";
+  row.appendChild(input);
+  return { row, input };
+}
+
+export function mountDebugMenu({ onUpdateSetting, onSpawnEnemy: onSpawn } = {}) {
+  if (typeof onUpdateSetting === "function") onUpdateDebugSettings = onUpdateSetting;
+  if (typeof onSpawn === "function") onSpawnEnemy = onSpawn;
+  if (debugMenuRoot) return;
+
+  const app = document.getElementById("app");
+  if (!app) return;
+
+  debugMenuRoot = document.createElement("section");
+  debugMenuRoot.className = "debug-menu is-hidden";
+  debugMenuRoot.setAttribute("aria-label", "Developer Menu");
+
+  const title = document.createElement("h2");
+  title.className = "debug-title";
+  title.textContent = "Developer Menu";
+
+  debugForm = document.createElement("form");
+  debugForm.className = "debug-form";
+
+  const rows = [
+    makeDebugRow("Player HP", "php"),
+    makeDebugRow("Player Max HP", "pMax"),
+    makeDebugRow("Enemy HP", "ehp"),
+    makeDebugRow("Gold", "currency"),
+    makeDebugRow("FOV Radius", "fovRadius"),
+  ];
+  for (const { row } of rows) debugForm.appendChild(row);
+
+  const actions = document.createElement("div");
+  actions.className = "debug-actions";
+  const applyBtn = document.createElement("button");
+  applyBtn.type = "submit";
+  applyBtn.className = "debug-btn";
+  applyBtn.textContent = "Apply";
+  const spawnBtn = document.createElement("button");
+  spawnBtn.type = "button";
+  spawnBtn.className = "debug-btn";
+  spawnBtn.textContent = "Spawn Enemy";
+  spawnBtn.addEventListener("click", () => onSpawnEnemy());
+  actions.appendChild(applyBtn);
+  actions.appendChild(spawnBtn);
+
+  debugForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = new FormData(debugForm);
+    const patch = {};
+    for (const [key, raw] of data.entries()) {
+      if (raw === "") continue;
+      const v = Number(raw);
+      if (Number.isFinite(v)) patch[key] = v;
+    }
+    onUpdateDebugSettings(patch);
+  });
+
+  debugForm.appendChild(actions);
+
+  debugMenuRoot.appendChild(title);
+  debugMenuRoot.appendChild(debugForm);
+  app.appendChild(debugMenuRoot);
+}
+
+export function renderDebugState(debugState) {
+  if (!debugForm || !debugState) return;
+  for (const [k, v] of Object.entries(debugState)) {
+    const input = debugForm.elements.namedItem(k);
+    if (!input || input.tagName !== "INPUT") continue;
+    input.value = String(v);
+  }
+}
+
+export function showDebugMenu() {
+  if (!debugMenuRoot) return;
+  debugMenuRoot.classList.remove("is-hidden");
+}
+
+export function hideDebugMenu() {
+  if (!debugMenuRoot) return;
+  debugMenuRoot.classList.add("is-hidden");
+}
+
+export function toggleDebugMenu() {
+  if (!debugMenuRoot) return;
+  debugMenuRoot.classList.toggle("is-hidden");
+}
+
+export function isDebugMenuVisible() {
+  if (!debugMenuRoot) return false;
+  return !debugMenuRoot.classList.contains("is-hidden");
 }

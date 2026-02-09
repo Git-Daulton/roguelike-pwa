@@ -40,7 +40,9 @@ let view = { cssW: 0, cssH: 0, w: 0, h: 0, dpr: 1 };
 let running = false;
 let cleanupFns = [];
 let activeRunConfig = null;
+let activeGameOptions = {};
 const snapshotListeners = new Set();
+const debugStateListeners = new Set();
 
 // --- RNG ---
 function randInt(min, max) {
@@ -78,6 +80,14 @@ const state = {
 
   // FOV
   fovRadius: 8,
+
+  // Run progress
+  currentFloor: 1,
+  totalFloors: 1,
+  runStatus: "active",
+  stairsX: -1,
+  stairsY: -1,
+  stairsActive: false,
 
   // Camera / render
   camX: 0,
@@ -130,11 +140,39 @@ function logPush(s) {
   if (state.log.length > state.logMax) state.log.shift();
 }
 
+function getDebugState() {
+  return {
+    php: state.php,
+    pMax: state.pMax,
+    ehp: state.ehp,
+    currency: state.currency,
+    fovRadius: state.fovRadius,
+    enemyAlive: state.eAlive,
+  };
+}
+
+function emitDebugState() {
+  const debugState = getDebugState();
+  for (const listener of debugStateListeners) listener(debugState);
+}
+
+export function subscribeDebugState(listener) {
+  if (typeof listener !== "function") return () => {};
+  debugStateListeners.add(listener);
+  listener(getDebugState());
+  return () => debugStateListeners.delete(listener);
+}
+
 function getSnapshot() {
-  const totalFloors = activeRunConfig?.floorPlan?.floors ?? 1;
   return {
     player: { hp: state.php, maxHp: state.pMax, currency: state.currency },
-    run: { currentFloor: 1, totalFloors },
+    run: {
+      currentFloor: state.currentFloor,
+      totalFloors: state.totalFloors,
+      hasStairs: state.stairsActive,
+      stairsPos: state.stairsActive ? { x: state.stairsX, y: state.stairsY } : null,
+      status: state.runStatus,
+    },
     inventory: state.inventory.map((slot) => {
       if (!slot) return { type: null, label: "" };
       return { type: slot.type, label: slot.label };
@@ -146,6 +184,7 @@ function getSnapshot() {
 function emitSnapshot() {
   const snapshot = getSnapshot();
   for (const listener of snapshotListeners) listener(snapshot);
+  emitDebugState();
 }
 
 export function subscribeGameSnapshot(listener) {
@@ -201,11 +240,52 @@ function placeEnemyFarFromPlayer() {
   state.ey = best ? best.y : state.py + 8;
 }
 
-function generateDungeon() {
-  fillWalls();
-  state.log = [];
+function placeStairsFarFromPlayer() {
+  let best = null;
+  for (let tries = 0; tries < 3000; tries++) {
+    const x = randInt(1, state.gridW - 2);
+    const y = randInt(1, state.gridH - 2);
+    if (!isWalkable(x, y)) continue;
+    if (x === state.px && y === state.py) continue;
+    if (state.eAlive && x === state.ex && y === state.ey) continue;
+    const d = Math.abs(x - state.px) + Math.abs(y - state.py);
+    if (!best || d > best.d) best = { x, y, d };
+  }
+
+  if (best) {
+    state.stairsX = best.x;
+    state.stairsY = best.y;
+    state.stairsActive = true;
+    return;
+  }
+
+  for (let y = 1; y < state.gridH - 1; y++) {
+    for (let x = 1; x < state.gridW - 1; x++) {
+      if (!isWalkable(x, y)) continue;
+      if (x === state.px && y === state.py) continue;
+      state.stairsX = x;
+      state.stairsY = y;
+      state.stairsActive = true;
+      return;
+    }
+  }
+
+  state.stairsX = state.px;
+  state.stairsY = state.py;
+  state.stairsActive = true;
+}
+
+function initializeRunState() {
+  state.currentFloor = 1;
+  state.totalFloors = Math.max(1, activeRunConfig?.floorPlan?.floors ?? 1);
+  state.runStatus = "active";
   state.currency = 0;
   state.inventory = Array(9).fill(null);
+}
+
+function generateDungeon({ preservePlayerStats = true } = {}) {
+  fillWalls();
+  if (!preservePlayerStats) state.log = [];
 
   const rooms = [];
   const maxRooms = 22;
@@ -248,8 +328,7 @@ function generateDungeon() {
     state.px = 5; state.py = 5;
   }
 
-  // Player stats
-  state.php = state.pMax;
+  if (!preservePlayerStats) state.php = state.pMax;
 
   // Enemy
   state.eAlive = true;
@@ -264,7 +343,8 @@ function generateDungeon() {
     placeEnemyFarFromPlayer();
   }
 
-  logPush("New floor. Find the enemy.");
+  placeStairsFarFromPlayer();
+  logPush(`Floor ${state.currentFloor}/${state.totalFloors}. Find the stairs (>)`);
   recomputeFOV();
   updateCamera();
 }
@@ -492,6 +572,45 @@ function findFirstEmptyInventorySlot() {
   return -1;
 }
 
+function isStairsTile(x, y) {
+  return state.stairsActive && x === state.stairsX && y === state.stairsY;
+}
+
+function completeRun() {
+  state.runStatus = "won";
+  state.stairsActive = false;
+  logPush(`[Run] Cleared floor ${state.currentFloor}/${state.totalFloors}.`);
+  logPush("[Run] Completed. Returning to menu.");
+  draw();
+  emitSnapshot();
+  if (typeof activeGameOptions.onRunComplete === "function") {
+    activeGameOptions.onRunComplete({
+      status: "won",
+      floorsCleared: state.currentFloor,
+      totalFloors: state.totalFloors,
+      gold: state.currency,
+    });
+  }
+}
+
+function advanceFloor() {
+  if (!isStairsTile(state.px, state.py)) return false;
+  if (state.eAlive) logPush("[Run] You take the stairs while an enemy remains.");
+
+  if (state.currentFloor >= state.totalFloors) {
+    completeRun();
+    return true;
+  }
+
+  state.currentFloor += 1;
+  state.stairsActive = false;
+  logPush(`[Run] Descending to floor ${state.currentFloor}/${state.totalFloors}.`);
+  generateDungeon({ preservePlayerStats: true });
+  draw();
+  emitSnapshot();
+  return true;
+}
+
 function grantEnemyLoot() {
   const gold = randInt(4, 12);
   state.currency += gold;
@@ -529,6 +648,81 @@ export function useInventorySlot(slotIndex) {
   tryUsePotion(slotIndex);
 }
 
+function clampInt(v, lo, hi) {
+  const n = Number.isFinite(v) ? Math.floor(v) : lo;
+  return Math.max(lo, Math.min(hi, n));
+}
+
+export function updateDebugSettings(patch = {}) {
+  if (!running) return;
+
+  if (patch.pMax !== undefined) {
+    state.pMax = clampInt(Number(patch.pMax), 1, 999);
+    state.php = Math.min(state.php, state.pMax);
+    logPush(`[Debug] Player max HP set to ${state.pMax}.`);
+  }
+  if (patch.php !== undefined) {
+    state.php = clampInt(Number(patch.php), 0, state.pMax);
+    logPush(`[Debug] Player HP set to ${state.php}/${state.pMax}.`);
+  }
+  if (patch.ehp !== undefined) {
+    state.ehp = clampInt(Number(patch.ehp), 0, 999);
+    if (state.ehp <= 0) {
+      state.eAlive = false;
+      state.ehp = 0;
+      logPush("[Debug] Enemy set to defeated.");
+    } else {
+      state.eAlive = true;
+      state.eMax = Math.max(state.eMax, state.ehp);
+      logPush(`[Debug] Enemy HP set to ${state.ehp}/${state.eMax}.`);
+    }
+  }
+  if (patch.currency !== undefined) {
+    state.currency = clampInt(Number(patch.currency), 0, 999999);
+    logPush(`[Debug] Gold set to ${state.currency}.`);
+  }
+  if (patch.fovRadius !== undefined) {
+    state.fovRadius = clampInt(Number(patch.fovRadius), 1, 20);
+    logPush(`[Debug] FOV radius set to ${state.fovRadius}.`);
+    recomputeFOV();
+    updateCamera();
+  }
+
+  draw();
+  emitSnapshot();
+}
+
+export function spawnEnemyNearPlayer() {
+  if (!running) return;
+
+  let best = null;
+  for (let y = Math.max(1, state.py - 12); y <= Math.min(state.gridH - 2, state.py + 12); y++) {
+    for (let x = Math.max(1, state.px - 12); x <= Math.min(state.gridW - 2, state.px + 12); x++) {
+      if (!isWalkable(x, y)) continue;
+      if (x === state.px && y === state.py) continue;
+      if (isStairsTile(x, y)) continue;
+      const d = Math.abs(x - state.px) + Math.abs(y - state.py);
+      if (d === 0) continue;
+      if (!best || d < best.d) best = { x, y, d };
+    }
+  }
+
+  if (!best) {
+    logPush("[Debug] Could not spawn enemy (no valid tile).");
+    emitSnapshot();
+    return;
+  }
+
+  state.ex = best.x;
+  state.ey = best.y;
+  state.eAlive = true;
+  state.eMax = Math.max(5, state.eMax);
+  state.ehp = state.eMax;
+  logPush(`[Debug] Enemy spawned at (${state.ex}, ${state.ey}).`);
+  draw();
+  emitSnapshot();
+}
+
 // --- Player action / turn loop ---
 function playerAct(type, dx = 0, dy = 0) {
   if (state.php === 0) return;
@@ -553,11 +747,13 @@ function playerAct(type, dx = 0, dy = 0) {
       state.px = nx;
       state.py = ny;
       acted = true;
+      if (advanceFloor()) return;
     }
   } else if (type === "wait") {
     acted = true;
   } else if (type === "reset") {
-    generateDungeon();
+    initializeRunState();
+    generateDungeon({ preservePlayerStats: false });
     draw();
     emitSnapshot();
     return;
@@ -632,6 +828,23 @@ function draw() {
       } else {
         ctx.fillStyle = vis ? "#556575" : "#24303c";
         ctx.fillText(".", cx, cy);
+      }
+    }
+  }
+
+  // Stairs
+  if (state.stairsActive) {
+    const si = idx(state.stairsX, state.stairsY);
+    const vis = state.visible[si] === 1;
+    const exp = state.explored[si] === 1;
+    if (vis || exp) {
+      const vx = state.stairsX - state.camX;
+      const vy = state.stairsY - state.camY;
+      if (vx >= 0 && vy >= 0 && vx < state.viewTilesW && vy < state.viewTilesH) {
+        const cx = ox + vx * tileSize + Math.floor(tileSize / 2);
+        const cy = oy + vy * tileSize + Math.floor(tileSize / 2);
+        ctx.fillStyle = vis ? "#7fd6ff" : "#44606e";
+        ctx.fillText(">", cx, cy);
       }
     }
   }
@@ -745,12 +958,13 @@ export function startGame(runConfig, options = {}) {
   if (running) stopGame();
   running = true;
   activeRunConfig = runConfig;
-  void options;
+  activeGameOptions = options || {};
 
   applyTouchClass();
   allocBuffers();
+  initializeRunState();
   cleanupFns.push(bindControls());
-  generateDungeon();
+  generateDungeon({ preservePlayerStats: false });
 
   const applyResize = () => {
     view = resizeCanvasToCSSPixels();
@@ -771,4 +985,5 @@ export function stopGame() {
   cleanupFns = [];
   running = false;
   activeRunConfig = null;
+  activeGameOptions = {};
 }

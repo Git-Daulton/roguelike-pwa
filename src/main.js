@@ -1,17 +1,41 @@
 import './style.css'
-import { startGame, stopGame, subscribeGameSnapshot, useInventorySlot } from './game'
-import { hideMenu, mountHud, mountMenu, renderHud, setInRunUIVisible, setQuitHandler, showMenu } from './ui'
+import {
+  spawnEnemyNearPlayer,
+  startGame,
+  stopGame,
+  subscribeDebugState,
+  subscribeGameSnapshot,
+  updateDebugSettings,
+  useInventorySlot
+} from './game'
+import {
+  hideDebugMenu,
+  hideMenu,
+  mountDebugMenu,
+  mountHud,
+  mountMenu,
+  renderDebugState,
+  renderHud,
+  setInRunUIVisible,
+  setQuitHandler,
+  showMenu,
+  toggleDebugMenu
+} from './ui'
 
 let runActive = false
 let unsubscribeSnapshot = () => {}
+let unsubscribeDebug = () => {}
 
 function quitToMenu() {
   if (!runActive) return
   runActive = false
   stopGame()
   unsubscribeSnapshot()
+  unsubscribeDebug()
   unsubscribeSnapshot = () => {}
+  unsubscribeDebug = () => {}
   setInRunUIVisible(false)
+  hideDebugMenu()
   renderHud(null)
   showMenu()
 }
@@ -20,9 +44,12 @@ function startRun(runConfig) {
   runActive = true
   hideMenu()
   setInRunUIVisible(true)
+  hideDebugMenu()
   unsubscribeSnapshot()
+  unsubscribeDebug()
   unsubscribeSnapshot = subscribeGameSnapshot(renderHud)
-  startGame(runConfig, { onQuit: quitToMenu })
+  unsubscribeDebug = subscribeDebugState(renderDebugState)
+  startGame(runConfig, { onQuit: quitToMenu, onRunComplete: quitToMenu })
 }
 
 window.addEventListener('keydown', (e) => {
@@ -31,9 +58,17 @@ window.addEventListener('keydown', (e) => {
   quitToMenu()
 }, { passive: false })
 
+window.addEventListener('keydown', (e) => {
+  if (!runActive || e.key !== '`') return
+  e.preventDefault()
+  toggleDebugMenu()
+}, { passive: false })
+
 mountMenu({ onStart: startRun })
-mountHud({ onUseInventorySlot: useInventorySlot })
+mountHud({ onUseInventorySlot: useInventorySlot, onToggleDebug: toggleDebugMenu })
+mountDebugMenu({ onUpdateSetting: updateDebugSettings, onSpawnEnemy: spawnEnemyNearPlayer })
 setQuitHandler(quitToMenu)
 setInRunUIVisible(false)
+hideDebugMenu()
 renderHud(null)
 showMenu()
