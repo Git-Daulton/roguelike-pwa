@@ -1,14 +1,18 @@
 import './style.css'
-import { startGame, stopGame } from './game'
-import { hideMenu, mountMenu, setInRunUIVisible, setQuitHandler, showMenu } from './ui'
+import { startGame, stopGame, subscribeGameSnapshot } from './game'
+import { hideMenu, mountHud, mountMenu, renderHud, setInRunUIVisible, setQuitHandler, showMenu } from './ui'
 
 let runActive = false
+let unsubscribeSnapshot = () => {}
 
 function quitToMenu() {
   if (!runActive) return
   runActive = false
   stopGame()
+  unsubscribeSnapshot()
+  unsubscribeSnapshot = () => {}
   setInRunUIVisible(false)
+  renderHud(null)
   showMenu()
 }
 
@@ -16,6 +20,8 @@ function startRun(runConfig) {
   runActive = true
   hideMenu()
   setInRunUIVisible(true)
+  unsubscribeSnapshot()
+  unsubscribeSnapshot = subscribeGameSnapshot(renderHud)
   startGame(runConfig, { onQuit: quitToMenu })
 }
 
@@ -26,6 +32,8 @@ window.addEventListener('keydown', (e) => {
 }, { passive: false })
 
 mountMenu({ onStart: startRun })
+mountHud()
 setQuitHandler(quitToMenu)
 setInRunUIVisible(false)
+renderHud(null)
 showMenu()

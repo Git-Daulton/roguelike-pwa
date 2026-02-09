@@ -40,6 +40,7 @@ let view = { cssW: 0, cssH: 0, w: 0, h: 0, dpr: 1 };
 let running = false;
 let cleanupFns = [];
 let activeRunConfig = null;
+const snapshotListeners = new Set();
 
 // --- RNG ---
 function randInt(min, max) {
@@ -86,7 +87,7 @@ const state = {
 
   // Rolling log
   log: [],
-  logMax: 6,
+  logMax: 8,
 };
 
 const pf = {
@@ -125,6 +126,28 @@ function logPush(s) {
   if (!s) return;
   state.log.push(s);
   if (state.log.length > state.logMax) state.log.shift();
+}
+
+function getSnapshot() {
+  const totalFloors = activeRunConfig?.floorPlan?.floors ?? 1;
+  return {
+    player: { hp: state.php, maxHp: state.pMax },
+    run: { currentFloor: 1, totalFloors },
+    inventory: Array(9).fill(""),
+    log: state.log.slice(-state.logMax),
+  };
+}
+
+function emitSnapshot() {
+  const snapshot = getSnapshot();
+  for (const listener of snapshotListeners) listener(snapshot);
+}
+
+export function subscribeGameSnapshot(listener) {
+  if (typeof listener !== "function") return () => {};
+  snapshotListeners.add(listener);
+  listener(getSnapshot());
+  return () => snapshotListeners.delete(listener);
 }
 
 // --- Dungeon generation (rooms + corridors) ---
@@ -484,11 +507,13 @@ function playerAct(type, dx = 0, dy = 0) {
   } else if (type === "reset") {
     generateDungeon();
     draw();
+    emitSnapshot();
     return;
   }
 
   if (!acted) {
     draw();
+    emitSnapshot();
     return;
   }
 
@@ -501,6 +526,7 @@ function playerAct(type, dx = 0, dy = 0) {
   updateCamera();
 
   draw();
+  emitSnapshot();
 }
 
 // --- Rendering helpers ---
@@ -523,7 +549,6 @@ function draw() {
   ctx.fillStyle = "#070a0e";
   ctx.fillRect(0, 0, w, h);
 
-  const ui = view.dpr;
   const tileSize = state.tileSize;
   const gridPxW = state.viewTilesW * tileSize;
   const gridPxH = state.viewTilesH * tileSize;
@@ -608,31 +633,6 @@ function draw() {
     }
   }
 
-  // HUD (player HP + log)
-  const hudX = Math.floor(12 * ui);
-  const hudY = Math.floor(12 * ui);
-  const hudBarY = hudY + Math.floor(18 * ui);
-  const hudBarW = Math.floor(120 * ui);
-  const hudBarH = Math.max(1, Math.floor(8 * ui));
-  const hudLine = Math.max(1, Math.floor(16 * ui));
-
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  ctx.font = `${Math.max(10, Math.floor(14 * ui))}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
-  ctx.fillStyle = "#93a4b8";
-  ctx.fillText(`HP: ${state.php}/${state.pMax}`, hudX, hudY);
-  drawBar(hudX, hudBarY, hudBarW, hudBarH, state.php / state.pMax,
-    "rgba(0,0,0,0.55)", "rgba(120,220,140,0.95)", "rgba(255,255,255,0.25)");
-
-  ctx.fillText(`Enemy: ${state.eAlive ? `${state.ehp}/${state.eMax}` : "dead"}`, hudX, hudY + Math.floor(34 * ui));
-  ctx.fillText(`pos: (${state.px}, ${state.py})`, hudX, hudY + Math.floor(52 * ui));
-
-  // Log lines
-  let ly = hudY + Math.floor(72 * ui);
-  for (let i = Math.max(0, state.log.length - 4); i < state.log.length; i++) {
-    ctx.fillText(state.log[i], hudX, ly);
-    ly += hudLine;
-  }
 }
 
 // --- Input wiring ---
@@ -706,6 +706,7 @@ export function startGame(runConfig, options = {}) {
   window.addEventListener("resize", applyResize);
   cleanupFns.push(() => window.removeEventListener("resize", applyResize));
   applyResize();
+  emitSnapshot();
 }
 
 export function stopGame() {

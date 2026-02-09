@@ -12,6 +12,11 @@ let summaryLine = null;
 let onStart = () => {};
 let onQuit = () => {};
 let quitButton = null;
+let hudRoot = null;
+let hudHpLine = null;
+let hudFloorLine = null;
+let hudInventorySlots = [];
+let hudLogList = null;
 
 function normalizeSeed(value) {
   const trimmed = String(value || "").trim();
@@ -182,4 +187,99 @@ export function hideMenu() {
 export function setInRunUIVisible(isVisible) {
   if (!quitButton) return;
   quitButton.classList.toggle("is-visible", Boolean(isVisible));
+}
+
+export function mountHud() {
+  if (hudRoot) return;
+  hudRoot = document.getElementById("hud");
+  if (!hudRoot) return;
+
+  const playerBlock = document.createElement("section");
+  playerBlock.className = "hud-block";
+
+  const playerTitle = document.createElement("h2");
+  playerTitle.className = "hud-title";
+  playerTitle.textContent = "Player";
+  hudHpLine = document.createElement("div");
+  hudHpLine.className = "hud-line";
+  hudFloorLine = document.createElement("div");
+  hudFloorLine.className = "hud-line";
+  playerBlock.appendChild(playerTitle);
+  playerBlock.appendChild(hudHpLine);
+  playerBlock.appendChild(hudFloorLine);
+
+  const invBlock = document.createElement("section");
+  invBlock.className = "hud-block";
+  const invTitle = document.createElement("h2");
+  invTitle.className = "hud-title";
+  invTitle.textContent = "Inventory";
+  const invGrid = document.createElement("div");
+  invGrid.className = "hud-inventory";
+  for (let i = 0; i < 9; i++) {
+    const slot = document.createElement("div");
+    slot.className = "hud-slot";
+    slot.textContent = "—";
+    hudInventorySlots.push(slot);
+    invGrid.appendChild(slot);
+  }
+  invBlock.appendChild(invTitle);
+  invBlock.appendChild(invGrid);
+
+  const logBlock = document.createElement("section");
+  logBlock.className = "hud-block";
+  const logTitle = document.createElement("h2");
+  logTitle.className = "hud-title";
+  logTitle.textContent = "Combat Log";
+  hudLogList = document.createElement("ul");
+  hudLogList.className = "hud-log";
+  logBlock.appendChild(logTitle);
+  logBlock.appendChild(hudLogList);
+
+  const minimapBtn = document.createElement("button");
+  minimapBtn.type = "button";
+  minimapBtn.className = "hud-minimap";
+  minimapBtn.textContent = "Minimap (Soon)";
+  minimapBtn.addEventListener("click", () => {});
+
+  hudRoot.appendChild(playerBlock);
+  hudRoot.appendChild(invBlock);
+  hudRoot.appendChild(logBlock);
+  hudRoot.appendChild(minimapBtn);
+
+  renderHud(null);
+}
+
+export function renderHud(snapshot) {
+  if (!hudRoot) return;
+
+  if (!snapshot) {
+    if (hudHpLine) hudHpLine.textContent = "HP: —/—";
+    if (hudFloorLine) hudFloorLine.textContent = "Floor: —/—";
+    for (const slot of hudInventorySlots) slot.textContent = "—";
+    if (hudLogList) {
+      hudLogList.innerHTML = "";
+      const li = document.createElement("li");
+      li.textContent = "No events yet.";
+      hudLogList.appendChild(li);
+    }
+    return;
+  }
+
+  if (hudHpLine) hudHpLine.textContent = `HP: ${snapshot.player.hp}/${snapshot.player.maxHp}`;
+  if (hudFloorLine) hudFloorLine.textContent = `Floor: ${snapshot.run.currentFloor}/${snapshot.run.totalFloors}`;
+
+  for (let i = 0; i < hudInventorySlots.length; i++) {
+    const value = snapshot.inventory[i];
+    hudInventorySlots[i].textContent = value && value.length > 0 ? value : "—";
+  }
+
+  if (hudLogList) {
+    hudLogList.innerHTML = "";
+    const lines = snapshot.log.length > 0 ? snapshot.log : ["No events yet."];
+    for (const line of lines) {
+      const li = document.createElement("li");
+      li.textContent = line;
+      hudLogList.appendChild(li);
+    }
+  }
 }
