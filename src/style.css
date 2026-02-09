@@ -156,13 +156,26 @@ html.touch #controls {
   font-weight: 600;
 }
 
-.menu-btn.is-selected {
+.menu-btn.selected {
   border-color: rgba(110, 220, 160, 0.65);
   background: rgba(110, 220, 160, 0.16);
 }
 
 .menu-btn-start {
   min-height: 46px;
+}
+
+.menu-btn.disabled,
+.menu-btn:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.menu-selection-summary {
+  margin: 2px 0 0;
+  min-height: 20px;
+  font-size: 13px;
+  color: #b8c7d7;
 }
 
 .menu-seed-wrap {

@@ -24,12 +24,19 @@ try {
 function resizeCanvasToCSSPixels() {
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   const rect = canvas.getBoundingClientRect();
-  canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-  canvas.height = Math.max(1, Math.floor(rect.height * dpr));
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return { w: rect.width, h: rect.height, dpr };
+  const cssW = Math.max(1, Math.floor(rect.width));
+  const cssH = Math.max(1, Math.floor(rect.height));
+  const w = Math.max(1, Math.floor(cssW * dpr));
+  const h = Math.max(1, Math.floor(cssH * dpr));
+
+  canvas.width = w;
+  canvas.height = h;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+
+  return { cssW, cssH, w, h, dpr };
 }
-let view = { w: 0, h: 0, dpr: 1 };
+let view = { cssW: 0, cssH: 0, w: 0, h: 0, dpr: 1 };
 let running = false;
 let cleanupFns = [];
 let activeRunConfig = null;
@@ -285,13 +292,15 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 function computeViewport() {
   const { w, h } = view;
-  const margin = state.margin;
+  const margin = Math.max(1, Math.floor(state.margin * view.dpr));
 
   const usableW = Math.max(1, w - margin * 2);
   const usableH = Math.max(1, h - margin * 2);
 
   const tile = Math.floor(Math.min(usableW / 40, usableH / 25));
-  state.tileSize = clamp(tile, 12, 22);
+  const minTile = Math.max(1, Math.floor(12 * view.dpr));
+  const maxTile = Math.max(minTile, Math.floor(22 * view.dpr));
+  state.tileSize = clamp(tile, minTile, maxTile);
 
   state.viewTilesW = Math.floor(usableW / state.tileSize);
   state.viewTilesH = Math.floor(usableH / state.tileSize);
@@ -514,13 +523,14 @@ function draw() {
   ctx.fillStyle = "#070a0e";
   ctx.fillRect(0, 0, w, h);
 
+  const ui = view.dpr;
   const tileSize = state.tileSize;
   const gridPxW = state.viewTilesW * tileSize;
   const gridPxH = state.viewTilesH * tileSize;
   const ox = Math.floor((w - gridPxW) / 2);
   const oy = Math.floor((h - gridPxH) / 2);
 
-  ctx.font = `${Math.floor(tileSize * 0.92)}px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace`;
+  ctx.font = `${Math.max(8, Math.floor(tileSize * 0.92))}px ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
@@ -536,8 +546,8 @@ function draw() {
       if (!vis && !exp) continue;
 
       const t = state.tiles[i];
-      const cx = ox + vx * tileSize + tileSize / 2;
-      const cy = oy + vy * tileSize + tileSize / 2;
+      const cx = ox + vx * tileSize + Math.floor(tileSize / 2);
+      const cy = oy + vy * tileSize + Math.floor(tileSize / 2);
 
       if (t === T.Wall) {
         ctx.fillStyle = vis ? "#b7c5d3" : "#3d4a57";
@@ -560,8 +570,8 @@ function draw() {
       const vy = state.ey - state.camY;
 
       if (vx >= 0 && vy >= 0 && vx < state.viewTilesW && vy < state.viewTilesH) {
-        const cx = ox + vx * tileSize + tileSize / 2;
-        const cy = oy + vy * tileSize + tileSize / 2;
+        const cx = ox + vx * tileSize + Math.floor(tileSize / 2);
+        const cy = oy + vy * tileSize + Math.floor(tileSize / 2);
 
         ctx.fillStyle = vis ? "#ffcf99" : "#6b5745";
         ctx.fillText("g", cx, cy);
@@ -591,31 +601,37 @@ function draw() {
     const vx = state.px - state.camX;
     const vy = state.py - state.camY;
     if (vx >= 0 && vy >= 0 && vx < state.viewTilesW && vy < state.viewTilesH) {
-      const cx = ox + vx * tileSize + tileSize / 2;
-      const cy = oy + vy * tileSize + tileSize / 2;
+      const cx = ox + vx * tileSize + Math.floor(tileSize / 2);
+      const cy = oy + vy * tileSize + Math.floor(tileSize / 2);
       ctx.fillStyle = "#e6edf3";
       ctx.fillText("@", cx, cy);
     }
   }
 
   // HUD (player HP + log)
-  const hudX = 12, hudY = 12;
+  const hudX = Math.floor(12 * ui);
+  const hudY = Math.floor(12 * ui);
+  const hudBarY = hudY + Math.floor(18 * ui);
+  const hudBarW = Math.floor(120 * ui);
+  const hudBarH = Math.max(1, Math.floor(8 * ui));
+  const hudLine = Math.max(1, Math.floor(16 * ui));
+
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  ctx.font = `14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+  ctx.font = `${Math.max(10, Math.floor(14 * ui))}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
   ctx.fillStyle = "#93a4b8";
   ctx.fillText(`HP: ${state.php}/${state.pMax}`, hudX, hudY);
-  drawBar(hudX, hudY + 18, 120, 8, state.php / state.pMax,
+  drawBar(hudX, hudBarY, hudBarW, hudBarH, state.php / state.pMax,
     "rgba(0,0,0,0.55)", "rgba(120,220,140,0.95)", "rgba(255,255,255,0.25)");
 
-  ctx.fillText(`Enemy: ${state.eAlive ? `${state.ehp}/${state.eMax}` : "dead"}`, hudX, hudY + 34);
-  ctx.fillText(`pos: (${state.px}, ${state.py})`, hudX, hudY + 52);
+  ctx.fillText(`Enemy: ${state.eAlive ? `${state.ehp}/${state.eMax}` : "dead"}`, hudX, hudY + Math.floor(34 * ui));
+  ctx.fillText(`pos: (${state.px}, ${state.py})`, hudX, hudY + Math.floor(52 * ui));
 
   // Log lines
-  let ly = hudY + 72;
+  let ly = hudY + Math.floor(72 * ui);
   for (let i = Math.max(0, state.log.length - 4); i < state.log.length; i++) {
     ctx.fillText(state.log[i], hudX, ly);
-    ly += 16;
+    ly += hudLine;
   }
 }
 
