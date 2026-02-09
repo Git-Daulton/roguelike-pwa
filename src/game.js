@@ -723,6 +723,43 @@ export function spawnEnemyNearPlayer() {
   emitSnapshot();
 }
 
+export function teleportPlayerNearStairs() {
+  if (!running) return;
+  if (!state.stairsActive) {
+    logPush("[Debug] No active stairs on this floor.");
+    emitSnapshot();
+    return;
+  }
+
+  const candidates = [];
+  for (let y = state.stairsY - 3; y <= state.stairsY + 3; y++) {
+    for (let x = state.stairsX - 3; x <= state.stairsX + 3; x++) {
+      if (!inBounds(x, y)) continue;
+      if (!isWalkable(x, y)) continue;
+      if (x === state.stairsX && y === state.stairsY) continue;
+      if (state.eAlive && x === state.ex && y === state.ey) continue;
+      const d = Math.abs(x - state.stairsX) + Math.abs(y - state.stairsY);
+      if (d < 2 || d > 3) continue;
+      candidates.push({ x, y });
+    }
+  }
+
+  if (candidates.length === 0) {
+    logPush("[Debug] Stair finder failed (no valid tile within 2-3).");
+    emitSnapshot();
+    return;
+  }
+
+  const pick = choice(candidates);
+  state.px = pick.x;
+  state.py = pick.y;
+  recomputeFOV();
+  updateCamera();
+  logPush(`[Debug] Stair finder teleported you near stairs (${state.stairsX}, ${state.stairsY}).`);
+  draw();
+  emitSnapshot();
+}
+
 // --- Player action / turn loop ---
 function playerAct(type, dx = 0, dy = 0) {
   if (state.php === 0) return;

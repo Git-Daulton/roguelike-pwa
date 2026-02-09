@@ -24,6 +24,7 @@ let debugMenuRoot = null;
 let debugForm = null;
 let onUpdateDebugSettings = () => {};
 let onSpawnEnemy = () => {};
+let onStairFinder = () => {};
 
 function normalizeSeed(value) {
   const trimmed = String(value || "").trim();
@@ -322,9 +323,10 @@ function makeDebugRow(labelText, name) {
   return { row, input };
 }
 
-export function mountDebugMenu({ onUpdateSetting, onSpawnEnemy: onSpawn } = {}) {
+export function mountDebugMenu({ onUpdateSetting, onSpawnEnemy: onSpawn, onStairFinder: onFindStairs } = {}) {
   if (typeof onUpdateSetting === "function") onUpdateDebugSettings = onUpdateSetting;
   if (typeof onSpawn === "function") onSpawnEnemy = onSpawn;
+  if (typeof onFindStairs === "function") onStairFinder = onFindStairs;
   if (debugMenuRoot) return;
 
   const app = document.getElementById("app");
@@ -361,8 +363,14 @@ export function mountDebugMenu({ onUpdateSetting, onSpawnEnemy: onSpawn } = {}) 
   spawnBtn.className = "debug-btn";
   spawnBtn.textContent = "Spawn Enemy";
   spawnBtn.addEventListener("click", () => onSpawnEnemy());
+  const stairFinderBtn = document.createElement("button");
+  stairFinderBtn.type = "button";
+  stairFinderBtn.className = "debug-btn";
+  stairFinderBtn.textContent = "Stair Finder";
+  stairFinderBtn.addEventListener("click", () => onStairFinder());
   actions.appendChild(applyBtn);
   actions.appendChild(spawnBtn);
+  actions.appendChild(stairFinderBtn);
 
   debugForm.addEventListener("submit", (e) => {
     e.preventDefault();

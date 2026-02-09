@@ -1,5 +1,6 @@
 import './style.css'
 import {
+  teleportPlayerNearStairs,
   spawnEnemyNearPlayer,
   startGame,
   stopGame,
@@ -66,7 +67,11 @@ window.addEventListener('keydown', (e) => {
 
 mountMenu({ onStart: startRun })
 mountHud({ onUseInventorySlot: useInventorySlot, onToggleDebug: toggleDebugMenu })
-mountDebugMenu({ onUpdateSetting: updateDebugSettings, onSpawnEnemy: spawnEnemyNearPlayer })
+mountDebugMenu({
+  onUpdateSetting: updateDebugSettings,
+  onSpawnEnemy: spawnEnemyNearPlayer,
+  onStairFinder: teleportPlayerNearStairs
+})
 setQuitHandler(quitToMenu)
 setInRunUIVisible(false)
 hideDebugMenu()
