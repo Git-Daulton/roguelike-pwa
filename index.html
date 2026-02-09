@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Roguelike PWA</title>
+  </head>
+
+  <body>
+    <main id="app">
+      <section id="game" aria-label="Game View">
+        <canvas id="c"></canvas>
+      </section>
+
+      <section id="controls" aria-label="Controls">
+        <div class="pad">
+          <button class="btn" data-act="up" aria-label="Move up">↑</button>
+
+          <div class="row">
+            <button class="btn" data-act="left" aria-label="Move left">←</button>
+            <button class="btn" data-act="wait" aria-label="Wait">•</button>
+            <button class="btn" data-act="right" aria-label="Move right">→</button>
+          </div>
+
+          <button class="btn" data-act="down" aria-label="Move down">↓</button>
+        </div>
+
+        <div class="side">
+          <button class="btn wide" data-act="reset">Reset</button>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
