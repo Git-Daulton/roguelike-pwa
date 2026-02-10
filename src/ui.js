@@ -290,7 +290,10 @@ export function renderHud(snapshot) {
   }
 
   if (hudHpLine) hudHpLine.textContent = `HP: ${snapshot.player.hp}/${snapshot.player.maxHp}`;
-  if (hudFloorLine) hudFloorLine.textContent = `Floor: ${snapshot.run.currentFloor}/${snapshot.run.totalFloors}`;
+  if (hudFloorLine) {
+    const base = `Floor: ${snapshot.run.currentFloor}/${snapshot.run.totalFloors}`;
+    hudFloorLine.textContent = snapshot.run.stairsLocked ? `${base} (Stairs Locked - Boss Alive)` : base;
+  }
   if (hudGoldLine) hudGoldLine.textContent = `Gold: ${snapshot.player.currency}`;
 
   for (let i = 0; i < hudInventorySlots.length; i++) {

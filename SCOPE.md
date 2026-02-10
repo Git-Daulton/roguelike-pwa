@@ -124,3 +124,7 @@ A “slice” must be playable and testable end-to-end.
 12) Combat feedback upgrade (floating numbers or improved hit feedback)
 13) Map variety (a couple layout families + set rooms/hazards)
 14) Balance + hardening (recovery economy, save safety, bug sweep)
+
+## Build Workflow Requirement
+- After completing implementation for a slice/change and validating it with a build (`npm run build`), commit the changes and push to the remote branch in the same work session.
+- Use clear commit messages that summarize the shipped behavior for that build.

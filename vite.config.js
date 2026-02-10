@@ -1,3 +1,4 @@
+// vite.config.js
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
@@ -20,8 +21,8 @@ export default defineConfig({
     })
   ],
   server: {
-    host: true,       // == 0.0.0.0
-    port: 5173,
+    host: true,      // bind 0.0.0.0 so it’s reachable on LAN/WSL
+    port: 5174,
     strictPort: true
   }
 })

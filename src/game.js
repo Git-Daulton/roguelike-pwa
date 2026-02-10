@@ -88,6 +88,8 @@ const state = {
   stairsX: -1,
   stairsY: -1,
   stairsActive: false,
+  isBossFloor: false,
+  bossAlive: false,
 
   // Camera / render
   camX: 0,
@@ -164,6 +166,8 @@ export function subscribeDebugState(listener) {
 }
 
 function getSnapshot() {
+  const isFinal = isFinalFloor();
+  const stairsLocked = isFinal && state.bossAlive;
   return {
     player: { hp: state.php, maxHp: state.pMax, currency: state.currency },
     run: {
@@ -172,6 +176,9 @@ function getSnapshot() {
       hasStairs: state.stairsActive,
       stairsPos: state.stairsActive ? { x: state.stairsX, y: state.stairsY } : null,
       status: state.runStatus,
+      isFinalFloor: isFinal,
+      bossAlive: state.bossAlive,
+      stairsLocked,
     },
     inventory: state.inventory.map((slot) => {
       if (!slot) return { type: null, label: "" };
@@ -275,12 +282,63 @@ function placeStairsFarFromPlayer() {
   state.stairsActive = true;
 }
 
+function placeEnemyNearStairs() {
+  let best = null;
+  for (let y = state.stairsY - 4; y <= state.stairsY + 4; y++) {
+    for (let x = state.stairsX - 4; x <= state.stairsX + 4; x++) {
+      if (!inBounds(x, y)) continue;
+      if (!isWalkable(x, y)) continue;
+      if (x === state.stairsX && y === state.stairsY) continue;
+      if (x === state.px && y === state.py) continue;
+      const d = Math.abs(x - state.stairsX) + Math.abs(y - state.stairsY);
+      if (d < 1 || d > 4) continue;
+      if (!best || d < best.d) best = { x, y, d };
+    }
+  }
+
+  if (best) {
+    state.ex = best.x;
+    state.ey = best.y;
+    return;
+  }
+
+  for (let y = 1; y < state.gridH - 1; y++) {
+    for (let x = 1; x < state.gridW - 1; x++) {
+      if (!isWalkable(x, y)) continue;
+      if (x === state.stairsX && y === state.stairsY) continue;
+      if (x === state.px && y === state.py) continue;
+      state.ex = x;
+      state.ey = y;
+      return;
+    }
+  }
+
+  state.ex = state.px;
+  state.ey = state.py;
+}
+
+function isFinalFloor() {
+  return state.currentFloor >= state.totalFloors;
+}
+
+function markEnemyDefeated(source = "combat") {
+  state.eAlive = false;
+  state.ehp = 0;
+
+  if (state.isBossFloor && state.bossAlive) {
+    state.bossAlive = false;
+    logPush(source === "debug" ? "[Debug] Boss defeated. The stairs unlock." : "[Run] Boss defeated. The stairs unlock.");
+  }
+}
+
 function initializeRunState() {
   state.currentFloor = 1;
   state.totalFloors = Math.max(1, activeRunConfig?.floorPlan?.floors ?? 1);
   state.runStatus = "active";
   state.currency = 0;
   state.inventory = Array(9).fill(null);
+  state.isBossFloor = false;
+  state.bossAlive = false;
 }
 
 function generateDungeon({ preservePlayerStats = true } = {}) {
@@ -330,21 +388,29 @@ function generateDungeon({ preservePlayerStats = true } = {}) {
 
   if (!preservePlayerStats) state.php = state.pMax;
 
-  // Enemy
-  state.eAlive = true;
-  state.eMax = 5;
-  state.ehp = 5;
-
-  if (rooms.length >= 2) {
-    const r = rooms[rooms.length - 1];
-    state.ex = r.cx;
-    state.ey = r.cy;
-  } else {
-    placeEnemyFarFromPlayer();
-  }
-
   placeStairsFarFromPlayer();
-  logPush(`Floor ${state.currentFloor}/${state.totalFloors}. Find the stairs (>)`);
+  state.isBossFloor = isFinalFloor();
+  state.eAlive = true;
+
+  if (state.isBossFloor) {
+    state.eMax = 10;
+    state.ehp = state.eMax;
+    state.bossAlive = true;
+    placeEnemyNearStairs();
+    logPush(`[Run] Final floor ${state.currentFloor}/${state.totalFloors}. Defeat the boss to unlock stairs.`);
+  } else {
+    state.eMax = 5;
+    state.ehp = 5;
+    state.bossAlive = false;
+    if (rooms.length >= 2) {
+      const r = rooms[rooms.length - 1];
+      state.ex = r.cx;
+      state.ey = r.cy;
+    } else {
+      placeEnemyFarFromPlayer();
+    }
+    logPush(`Floor ${state.currentFloor}/${state.totalFloors}. Find the stairs (>)`);
+  }
   recomputeFOV();
   updateCamera();
 }
@@ -595,12 +661,18 @@ function completeRun() {
 
 function advanceFloor() {
   if (!isStairsTile(state.px, state.py)) return false;
-  if (state.eAlive) logPush("[Run] You take the stairs while an enemy remains.");
-
-  if (state.currentFloor >= state.totalFloors) {
+  if (isFinalFloor()) {
+    if (state.bossAlive) {
+      logPush("[Run] The stairs are sealed. Defeat the boss.");
+      draw();
+      emitSnapshot();
+      return true;
+    }
     completeRun();
     return true;
   }
+
+  if (state.eAlive) logPush("[Run] You take the stairs while an enemy remains.");
 
   state.currentFloor += 1;
   state.stairsActive = false;
@@ -668,8 +740,7 @@ export function updateDebugSettings(patch = {}) {
   if (patch.ehp !== undefined) {
     state.ehp = clampInt(Number(patch.ehp), 0, 999);
     if (state.ehp <= 0) {
-      state.eAlive = false;
-      state.ehp = 0;
+      markEnemyDefeated("debug");
       logPush("[Debug] Enemy set to defeated.");
     } else {
       state.eAlive = true;
@@ -718,6 +789,7 @@ export function spawnEnemyNearPlayer() {
   state.eAlive = true;
   state.eMax = Math.max(5, state.eMax);
   state.ehp = state.eMax;
+  state.bossAlive = state.isBossFloor ? state.bossAlive : false;
   logPush(`[Debug] Enemy spawned at (${state.ex}, ${state.ey}).`);
   draw();
   emitSnapshot();
@@ -775,7 +847,7 @@ function playerAct(type, dx = 0, dy = 0) {
       state.ehp = Math.max(0, state.ehp - dmg);
       logPush(`You damage enemy (-${dmg}). Enemy HP: ${state.ehp}/${state.eMax}`);
       if (state.ehp === 0) {
-        state.eAlive = false;
+        markEnemyDefeated("combat");
         logPush("Enemy defeated.");
         grantEnemyLoot();
       }
