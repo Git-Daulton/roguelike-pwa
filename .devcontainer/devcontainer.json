@@ -1,0 +1,13 @@
+// .devcontainer/devcontainer.json
+{
+  "name": "roguelike-pwa",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "postCreateCommand": "npm ci",
+  "forwardPorts": [5174],
+  "portsAttributes": {
+    "5174": {
+      "label": "Vite dev server",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}
