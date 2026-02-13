@@ -2,6 +2,11 @@
 {
   "name": "roguelike-pwa",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
+    }
+  },
   "postCreateCommand": "npm ci",
   "forwardPorts": [5174],
   "portsAttributes": {
