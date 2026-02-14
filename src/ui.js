@@ -9,6 +9,7 @@ let selectedRunLength = null;
 let seedInput = null;
 let startButton = null;
 let summaryLine = null;
+let menuMetaLine = null;
 let onStart = () => {};
 let onQuit = () => {};
 let quitButton = null;
@@ -144,6 +145,10 @@ export function mountMenu({ onStart: onStartCb } = {}) {
     summaryLine = document.createElement("p");
     summaryLine.className = "menu-selection-summary";
 
+    menuMetaLine = document.createElement("p");
+    menuMetaLine.className = "menu-selection-summary menu-meta-currency";
+    menuMetaLine.textContent = "Meta Currency: 0";
+
     const seedWrap = document.createElement("label");
     seedWrap.className = "menu-seed-wrap";
     seedWrap.textContent = "Seed (optional)";
@@ -165,6 +170,7 @@ export function mountMenu({ onStart: onStartCb } = {}) {
     card.appendChild(title);
     card.appendChild(runButtons);
     card.appendChild(summaryLine);
+    card.appendChild(menuMetaLine);
     card.appendChild(seedWrap);
     card.appendChild(startButton);
     menuOverlay.appendChild(card);
@@ -179,6 +185,12 @@ export function mountMenu({ onStart: onStartCb } = {}) {
 
     updateMenuState();
   }
+}
+
+export function setMenuMetaCurrency(value) {
+  if (!menuMetaLine) return;
+  const amount = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+  menuMetaLine.textContent = `Meta Currency: ${amount}`;
 }
 
 export function setQuitHandler(handler) {

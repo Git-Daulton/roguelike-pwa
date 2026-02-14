@@ -10,6 +10,12 @@ import {
   useInventorySlot
 } from './game'
 import {
+  appendRunHistory,
+  loadSaveState,
+  persistSaveState,
+  toRunHistoryEntry
+} from './game/save'
+import {
   hideDebugMenu,
   hideMenu,
   mountDebugMenu,
@@ -18,6 +24,7 @@ import {
   mountRunEnd,
   renderDebugState,
   renderHud,
+  setMenuMetaCurrency,
   setInRunUIVisible,
   setQuitHandler,
   setRunEndContinueHandler,
@@ -30,6 +37,11 @@ import {
 let runActive = false
 let unsubscribeSnapshot = () => {}
 let unsubscribeDebug = () => {}
+const metaState = loadSaveState()
+
+function renderMenuMetaCurrency() {
+  setMenuMetaCurrency(metaState.metaCurrency)
+}
 
 function quitToMenu() {
   if (!runActive) return
@@ -43,6 +55,7 @@ function quitToMenu() {
   hideDebugMenu()
   hideRunEnd()
   renderHud(null)
+  renderMenuMetaCurrency()
   showMenu()
 }
 
@@ -56,10 +69,19 @@ function continueFromRunEnd() {
   setInRunUIVisible(false)
   hideDebugMenu()
   renderHud(null)
+  renderMenuMetaCurrency()
   showMenu()
 }
 
 function handleRunEnd(summary) {
+  const reward = summary?.status === 'won' ? (summary?.gold ?? 0) : 0
+  metaState.metaCurrency += reward
+  const entry = toRunHistoryEntry(summary, reward, new Date().toISOString())
+  metaState.runHistory = appendRunHistory(metaState, entry)
+  if (!persistSaveState(metaState)) {
+    console.warn('[Save] Failed to persist meta progress.')
+  }
+
   runActive = false
   setInRunUIVisible(false)
   hideDebugMenu()
@@ -105,4 +127,5 @@ setInRunUIVisible(false)
 hideDebugMenu()
 hideRunEnd()
 renderHud(null)
+renderMenuMetaCurrency()
 showMenu()

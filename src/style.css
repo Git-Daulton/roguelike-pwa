@@ -381,6 +381,10 @@ html.touch #controls {
   color: #b8c7d7;
 }
 
+.menu-meta-currency {
+  color: #9ed7ae;
+}
+
 .menu-seed-wrap {
   display: flex;
   flex-direction: column;
