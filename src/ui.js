@@ -11,12 +11,18 @@ let startButton = null;
 let summaryLine = null;
 let menuMetaLine = null;
 let onStart = () => {};
+let onOpenShop = () => {};
 let onQuit = () => {};
 let quitButton = null;
 let runEndOverlay = null;
 let runEndTitle = null;
 let runEndList = null;
 let onRunEndContinue = () => {};
+let shopOverlay = null;
+let shopCurrencyLine = null;
+let shopList = null;
+let onMetaShopBuy = () => {};
+let onMetaShopClose = () => {};
 let hudRoot = null;
 let hudHpLine = null;
 let hudFloorLine = null;
@@ -111,8 +117,9 @@ function beginRun() {
   onStart(runConfig);
 }
 
-export function mountMenu({ onStart: onStartCb } = {}) {
+export function mountMenu({ onStart: onStartCb, onOpenShop: onOpenShopCb } = {}) {
   if (typeof onStartCb === "function") onStart = onStartCb;
+  if (typeof onOpenShopCb === "function") onOpenShop = onOpenShopCb;
 
   if (!menuOverlay) {
     const app = document.getElementById("app");
@@ -167,12 +174,19 @@ export function mountMenu({ onStart: onStartCb } = {}) {
     startButton.textContent = "Begin Run";
     startButton.addEventListener("click", beginRun);
 
+    const shopButton = document.createElement("button");
+    shopButton.type = "button";
+    shopButton.className = "menu-btn menu-shop-btn";
+    shopButton.textContent = "Meta Shop";
+    shopButton.addEventListener("click", () => onOpenShop());
+
     card.appendChild(title);
     card.appendChild(runButtons);
     card.appendChild(summaryLine);
     card.appendChild(menuMetaLine);
     card.appendChild(seedWrap);
     card.appendChild(startButton);
+    card.appendChild(shopButton);
     menuOverlay.appendChild(card);
     app.appendChild(menuOverlay);
 
@@ -285,6 +299,96 @@ export function showRunEnd(summary) {
 export function hideRunEnd() {
   if (!runEndOverlay) return;
   runEndOverlay.classList.add("is-hidden");
+}
+
+export function mountMetaShop({ onBuyUpgrade, onClose } = {}) {
+  if (typeof onBuyUpgrade === "function") onMetaShopBuy = onBuyUpgrade;
+  if (typeof onClose === "function") onMetaShopClose = onClose;
+  if (shopOverlay) return;
+
+  const app = document.getElementById("app");
+  if (!app) return;
+
+  shopOverlay = document.createElement("section");
+  shopOverlay.className = "shop-overlay is-hidden";
+  shopOverlay.setAttribute("aria-label", "Meta Shop");
+
+  const card = document.createElement("div");
+  card.className = "shop-card";
+
+  const title = document.createElement("h2");
+  title.className = "shop-title";
+  title.textContent = "Meta Shop";
+
+  shopCurrencyLine = document.createElement("p");
+  shopCurrencyLine.className = "shop-currency";
+
+  shopList = document.createElement("div");
+  shopList.className = "shop-list";
+
+  const closeButton = document.createElement("button");
+  closeButton.type = "button";
+  closeButton.className = "shop-close-btn";
+  closeButton.textContent = "Close";
+  closeButton.addEventListener("click", () => onMetaShopClose());
+
+  card.appendChild(title);
+  card.appendChild(shopCurrencyLine);
+  card.appendChild(shopList);
+  card.appendChild(closeButton);
+  shopOverlay.appendChild(card);
+  app.appendChild(shopOverlay);
+}
+
+export function setMetaShopHandlers({ onBuyUpgrade, onClose } = {}) {
+  if (typeof onBuyUpgrade === "function") onMetaShopBuy = onBuyUpgrade;
+  if (typeof onClose === "function") onMetaShopClose = onClose;
+}
+
+export function showMetaShop({ metaCurrency = 0, upgrades = {}, definitions = [] } = {}) {
+  if (!shopOverlay || !shopCurrencyLine || !shopList) return;
+
+  const funds = Number.isFinite(metaCurrency) ? Math.max(0, Math.floor(metaCurrency)) : 0;
+  shopCurrencyLine.textContent = `Meta Currency: ${funds}`;
+  shopList.innerHTML = "";
+
+  for (const definition of definitions) {
+    const rankRaw = upgrades?.[definition.id];
+    const rank = Number.isFinite(rankRaw) ? Math.max(0, Math.floor(rankRaw)) : 0;
+    const nextRank = rank + 1;
+    const cost = nextRank <= definition.maxRank ? definition.costs[nextRank - 1] : null;
+    const canBuy = cost !== null && funds >= cost;
+
+    const row = document.createElement("div");
+    row.className = "shop-row";
+
+    const text = document.createElement("div");
+    text.className = "shop-row-text";
+    const effect = document.createElement("div");
+    effect.className = "shop-effect";
+    const costText = cost === null ? "Maxed" : `Next cost: ${cost}`;
+    text.textContent = `${definition.label} (${rank}/${definition.maxRank})`;
+    effect.textContent = `${definition.description} | ${costText}`;
+
+    const buyButton = document.createElement("button");
+    buyButton.type = "button";
+    buyButton.className = "shop-buy-btn";
+    buyButton.textContent = cost === null ? "Maxed" : `Buy (${cost})`;
+    buyButton.disabled = !canBuy;
+    buyButton.addEventListener("click", () => onMetaShopBuy(definition.id));
+
+    row.appendChild(text);
+    row.appendChild(effect);
+    row.appendChild(buyButton);
+    shopList.appendChild(row);
+  }
+
+  shopOverlay.classList.remove("is-hidden");
+}
+
+export function hideMetaShop() {
+  if (!shopOverlay) return;
+  shopOverlay.classList.add("is-hidden");
 }
 
 export function mountHud({ onUseInventorySlot: onUseSlot, onToggleDebug } = {}) {

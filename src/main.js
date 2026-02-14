@@ -16,15 +16,25 @@ import {
   toRunHistoryEntry
 } from './game/save'
 import {
+  META_UPGRADES,
+  getUpgradeEffects,
+  normalizeUpgradeRanks,
+  purchaseUpgrade
+} from './game/meta-upgrades'
+import {
   hideDebugMenu,
   hideMenu,
   mountDebugMenu,
   mountHud,
+  mountMetaShop,
   mountMenu,
   mountRunEnd,
   renderDebugState,
   renderHud,
+  hideMetaShop,
+  showMetaShop,
   setMenuMetaCurrency,
+  setMetaShopHandlers,
   setInRunUIVisible,
   setQuitHandler,
   setRunEndContinueHandler,
@@ -37,10 +47,47 @@ import {
 let runActive = false
 let unsubscribeSnapshot = () => {}
 let unsubscribeDebug = () => {}
-const metaState = loadSaveState()
+const loadedMetaState = loadSaveState()
+const metaState = {
+  ...loadedMetaState,
+  upgrades: normalizeUpgradeRanks(loadedMetaState.upgrades)
+}
+
+if (JSON.stringify(metaState.upgrades) !== JSON.stringify(loadedMetaState.upgrades || {})) {
+  persistSaveState(metaState)
+}
 
 function renderMenuMetaCurrency() {
   setMenuMetaCurrency(metaState.metaCurrency)
+}
+
+function openMetaShop() {
+  showMetaShop({
+    metaCurrency: metaState.metaCurrency,
+    upgrades: metaState.upgrades,
+    definitions: META_UPGRADES
+  })
+}
+
+function closeMetaShop() {
+  hideMetaShop()
+}
+
+function buyUpgrade(upgradeId) {
+  const result = purchaseUpgrade({
+    metaCurrency: metaState.metaCurrency,
+    upgrades: metaState.upgrades,
+    upgradeId
+  })
+  if (!result.ok) return
+
+  metaState.metaCurrency = result.metaCurrency
+  metaState.upgrades = result.upgrades
+  if (!persistSaveState(metaState)) {
+    console.warn('[Save] Failed to persist upgrade purchase.')
+  }
+  renderMenuMetaCurrency()
+  openMetaShop()
 }
 
 function quitToMenu() {
@@ -54,6 +101,7 @@ function quitToMenu() {
   setInRunUIVisible(false)
   hideDebugMenu()
   hideRunEnd()
+  hideMetaShop()
   renderHud(null)
   renderMenuMetaCurrency()
   showMenu()
@@ -68,6 +116,7 @@ function continueFromRunEnd() {
   unsubscribeDebug = () => {}
   setInRunUIVisible(false)
   hideDebugMenu()
+  hideMetaShop()
   renderHud(null)
   renderMenuMetaCurrency()
   showMenu()
@@ -89,16 +138,18 @@ function handleRunEnd(summary) {
 }
 
 function startRun(runConfig) {
+  const metaEffects = getUpgradeEffects(metaState.upgrades)
   runActive = true
   hideMenu()
   hideRunEnd()
+  hideMetaShop()
   setInRunUIVisible(true)
   hideDebugMenu()
   unsubscribeSnapshot()
   unsubscribeDebug()
   unsubscribeSnapshot = subscribeGameSnapshot(renderHud)
   unsubscribeDebug = subscribeDebugState(renderDebugState)
-  startGame(runConfig, { onQuit: quitToMenu, onRunEnd: handleRunEnd })
+  startGame(runConfig, { onQuit: quitToMenu, onRunEnd: handleRunEnd, metaEffects })
 }
 
 window.addEventListener('keydown', (e) => {
@@ -113,9 +164,10 @@ window.addEventListener('keydown', (e) => {
   toggleDebugMenu()
 }, { passive: false })
 
-mountMenu({ onStart: startRun })
+mountMenu({ onStart: startRun, onOpenShop: openMetaShop })
 mountHud({ onUseInventorySlot: useInventorySlot, onToggleDebug: toggleDebugMenu })
 mountRunEnd({ onContinue: continueFromRunEnd })
+mountMetaShop({ onBuyUpgrade: buyUpgrade, onClose: closeMetaShop })
 mountDebugMenu({
   onUpdateSetting: updateDebugSettings,
   onSpawnEnemy: spawnEnemyNearPlayer,
@@ -123,9 +175,11 @@ mountDebugMenu({
 })
 setQuitHandler(quitToMenu)
 setRunEndContinueHandler(continueFromRunEnd)
+setMetaShopHandlers({ onBuyUpgrade: buyUpgrade, onClose: closeMetaShop })
 setInRunUIVisible(false)
 hideDebugMenu()
 hideRunEnd()
+hideMetaShop()
 renderHud(null)
 renderMenuMetaCurrency()
 showMenu()

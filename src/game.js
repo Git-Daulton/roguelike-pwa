@@ -68,7 +68,10 @@ const state = {
   py: 2,
   php: 10,
   pMax: 10,
+  basePMax: 10,
   currency: 0,
+  startingGoldBonus: 0,
+  potionDropChanceBonus: 0,
   inventory: [],
 
   // Enemy (single)
@@ -337,7 +340,9 @@ function initializeRunState() {
   state.currentFloor = 1;
   state.totalFloors = Math.max(1, activeRunConfig?.floorPlan?.floors ?? 1);
   state.runStatus = "active";
-  state.currency = 0;
+  state.pMax = Math.max(1, state.basePMax);
+  state.php = state.pMax;
+  state.currency = Math.max(0, state.startingGoldBonus);
   state.inventory = Array(9).fill(null);
   state.isBossFloor = false;
   state.bossAlive = false;
@@ -718,6 +723,13 @@ function grantEnemyLoot() {
   const gold = randInt(4, 12);
   state.currency += gold;
   logPush(`Loot: +${gold} gold.`);
+
+  const basePotionDropChance = 0.45;
+  const finalPotionDropChance = Math.min(0.95, basePotionDropChance + state.potionDropChanceBonus);
+  if (Math.random() > finalPotionDropChance) {
+    logPush("Loot: No potion dropped.");
+    return;
+  }
 
   const slot = findFirstEmptyInventorySlot();
   if (slot === -1) {
@@ -1108,6 +1120,13 @@ export function startGame(runConfig, options = {}) {
   running = true;
   activeRunConfig = runConfig;
   activeGameOptions = options || {};
+  const effects = activeGameOptions.metaEffects || {};
+  state.basePMax = 10 + clampInt(Number(effects.bonusMaxHp), 0, 999);
+  state.startingGoldBonus = clampInt(Number(effects.bonusStartingGold), 0, 999999);
+  const potionBonus = Number.isFinite(Number(effects.potionDropChanceBonus))
+    ? Number(effects.potionDropChanceBonus)
+    : 0;
+  state.potionDropChanceBonus = Math.max(0, Math.min(0.5, potionBonus));
 
   applyTouchClass();
   allocBuffers();

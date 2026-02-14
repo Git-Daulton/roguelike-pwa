@@ -1,3 +1,5 @@
+import { normalizeUpgradeRanks } from "./meta-upgrades";
+
 export const SAVE_KEY = "rlpwa.v1";
 export const SAVE_VERSION = 1;
 export const RUN_HISTORY_LIMIT = 20;
@@ -49,7 +51,7 @@ function sanitizeSaveState(state) {
   return {
     version: SAVE_VERSION,
     metaCurrency: toFiniteNonNegativeInt(src.metaCurrency),
-    upgrades: isPlainObject(src.upgrades) ? { ...src.upgrades } : {},
+    upgrades: normalizeUpgradeRanks(src.upgrades),
     runHistory: normalizeRunHistoryArray(src.runHistory),
   };
 }
@@ -58,7 +60,7 @@ export function createDefaultSaveState() {
   return {
     version: SAVE_VERSION,
     metaCurrency: 0,
-    upgrades: {},
+    upgrades: normalizeUpgradeRanks({}),
     runHistory: [],
   };
 }

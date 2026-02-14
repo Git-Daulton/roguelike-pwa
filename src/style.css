@@ -326,6 +326,87 @@ html.touch #controls {
   font-weight: 600;
 }
 
+.shop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(7, 10, 14, 0.78);
+  backdrop-filter: blur(4px);
+}
+
+.shop-overlay.is-hidden {
+  display: none;
+}
+
+.shop-card {
+  width: min(560px, 100%);
+  max-height: min(80vh, 720px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #101720;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.shop-title {
+  margin: 0;
+  font-size: 24px;
+}
+
+.shop-currency {
+  margin: 0;
+  color: #9ed7ae;
+  font-size: 14px;
+}
+
+.shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shop-row {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shop-row-text {
+  font-size: 14px;
+  color: #d8e3ee;
+}
+
+.shop-effect {
+  font-size: 12px;
+  color: #9fb1c4;
+}
+
+.shop-buy-btn,
+.shop-close-btn {
+  min-height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.shop-buy-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .menu-card {
   width: min(420px, 100%);
   display: flex;
@@ -366,6 +447,10 @@ html.touch #controls {
 
 .menu-btn-start {
   min-height: 46px;
+}
+
+.menu-shop-btn {
+  min-height: 40px;
 }
 
 .menu-btn.disabled,
