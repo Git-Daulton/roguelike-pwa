@@ -90,6 +90,8 @@ const state = {
   stairsActive: false,
   isBossFloor: false,
   bossAlive: false,
+  turns: 0,
+  kills: 0,
 
   // Camera / render
   camX: 0,
@@ -339,6 +341,8 @@ function initializeRunState() {
   state.inventory = Array(9).fill(null);
   state.isBossFloor = false;
   state.bossAlive = false;
+  state.turns = 0;
+  state.kills = 0;
 }
 
 function generateDungeon({ preservePlayerStats = true } = {}) {
@@ -611,13 +615,16 @@ function astarNextStep(sx, sy, gx, gy, maxNodes = 1800) {
 
 // --- Enemy turn ---
 function enemyTurn() {
-  if (!state.eAlive || state.php === 0) return;
+  if (!state.eAlive || state.php === 0 || state.runStatus !== "active") return;
 
   if (isAdjacent(state.ex, state.ey, state.px, state.py)) {
     const dmg = 1;
     state.php = Math.max(0, state.php - dmg);
     logPush(`Enemy damages you (-${dmg}). HP: ${state.php}/${state.pMax}`);
-    if (state.php === 0) logPush("You were defeated.");
+    if (state.php === 0) {
+      logPush("You were defeated.");
+      endRun("lost");
+    }
     return;
   }
 
@@ -642,21 +649,45 @@ function isStairsTile(x, y) {
   return state.stairsActive && x === state.stairsX && y === state.stairsY;
 }
 
-function completeRun() {
-  state.runStatus = "won";
+function buildRunSummary(status) {
+  return {
+    status,
+    floorsCleared: state.currentFloor,
+    totalFloors: state.totalFloors,
+    gold: state.currency,
+    turns: state.turns,
+    kills: state.kills,
+    seed: activeRunConfig?.seed ?? null,
+    runLength: activeRunConfig?.runLength ?? null,
+  };
+}
+
+function endRun(status) {
+  if (state.runStatus !== "active") return;
+  state.runStatus = status;
   state.stairsActive = false;
-  logPush(`[Run] Cleared floor ${state.currentFloor}/${state.totalFloors}.`);
-  logPush("[Run] Completed. Returning to menu.");
+
+  if (status === "won") {
+    logPush(`[Run] Cleared floor ${state.currentFloor}/${state.totalFloors}.`);
+    logPush("[Run] Completed.");
+  } else if (status === "lost") {
+    logPush("[Run] Defeat.");
+  }
+
+  const summary = buildRunSummary(status);
   draw();
   emitSnapshot();
-  if (typeof activeGameOptions.onRunComplete === "function") {
-    activeGameOptions.onRunComplete({
-      status: "won",
-      floorsCleared: state.currentFloor,
-      totalFloors: state.totalFloors,
-      gold: state.currency,
-    });
+
+  if (typeof activeGameOptions.onRunEnd === "function") {
+    activeGameOptions.onRunEnd(summary);
+  } else if (typeof activeGameOptions.onRunComplete === "function") {
+    // Temporary backwards compatibility while callers migrate to onRunEnd.
+    activeGameOptions.onRunComplete(summary);
   }
+}
+
+function completeRun() {
+  endRun("won");
 }
 
 function advanceFloor() {
@@ -700,6 +731,7 @@ function grantEnemyLoot() {
 
 function tryUsePotion(slotIndex) {
   if (!running) return false;
+  if (state.runStatus !== "active") return false;
   if (state.php === 0) return false;
   if (slotIndex < 0 || slotIndex >= state.inventory.length) return false;
 
@@ -834,6 +866,7 @@ export function teleportPlayerNearStairs() {
 
 // --- Player action / turn loop ---
 function playerAct(type, dx = 0, dy = 0) {
+  if (state.runStatus !== "active") return;
   if (state.php === 0) return;
 
   let acted = false;
@@ -849,6 +882,7 @@ function playerAct(type, dx = 0, dy = 0) {
       if (state.ehp === 0) {
         markEnemyDefeated("combat");
         logPush("Enemy defeated.");
+        state.kills += 1;
         grantEnemyLoot();
       }
       acted = true;
@@ -856,7 +890,10 @@ function playerAct(type, dx = 0, dy = 0) {
       state.px = nx;
       state.py = ny;
       acted = true;
-      if (advanceFloor()) return;
+      if (advanceFloor()) {
+        state.turns += 1;
+        return;
+      }
     }
   } else if (type === "wait") {
     acted = true;
@@ -874,10 +911,13 @@ function playerAct(type, dx = 0, dy = 0) {
     return;
   }
 
+  state.turns += 1;
+
   recomputeFOV();
   updateCamera();
 
   enemyTurn();
+  if (state.runStatus !== "active") return;
 
   recomputeFOV();
   updateCamera();
@@ -1016,7 +1056,7 @@ function applyTouchClass() {
 }
 
 function handleAction(act) {
-  if (!running) return;
+  if (!running || state.runStatus !== "active") return;
   switch (act) {
     case "up": return playerAct("move", 0, -1);
     case "down": return playerAct("move", 0, 1);

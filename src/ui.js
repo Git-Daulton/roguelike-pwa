@@ -12,6 +12,10 @@ let summaryLine = null;
 let onStart = () => {};
 let onQuit = () => {};
 let quitButton = null;
+let runEndOverlay = null;
+let runEndTitle = null;
+let runEndList = null;
+let onRunEndContinue = () => {};
 let hudRoot = null;
 let hudHpLine = null;
 let hudFloorLine = null;
@@ -195,6 +199,80 @@ export function hideMenu() {
 export function setInRunUIVisible(isVisible) {
   if (!quitButton) return;
   quitButton.classList.toggle("is-visible", Boolean(isVisible));
+}
+
+function summaryLabel(status) {
+  return status === "won" ? "Victory" : "Defeat";
+}
+
+function summaryLines(summary) {
+  if (!summary) return [];
+  return [
+    `Status: ${summary.status ?? "unknown"}`,
+    `Floors: ${summary.floorsCleared ?? 0}/${summary.totalFloors ?? 0}`,
+    `Gold: ${summary.gold ?? 0}`,
+    `Turns: ${summary.turns ?? 0}`,
+    `Kills: ${summary.kills ?? 0}`,
+    `Seed: ${summary.seed ?? "n/a"}`,
+    `Run: ${summary.runLength ?? "n/a"}`
+  ];
+}
+
+export function mountRunEnd({ onContinue } = {}) {
+  if (typeof onContinue === "function") onRunEndContinue = onContinue;
+  if (runEndOverlay) return;
+
+  const app = document.getElementById("app");
+  if (!app) return;
+
+  runEndOverlay = document.createElement("section");
+  runEndOverlay.className = "runend-overlay is-hidden";
+  runEndOverlay.setAttribute("aria-label", "Run End Summary");
+
+  const card = document.createElement("div");
+  card.className = "runend-card";
+
+  runEndTitle = document.createElement("h2");
+  runEndTitle.className = "runend-title";
+  runEndTitle.textContent = "Run End";
+
+  runEndList = document.createElement("ul");
+  runEndList.className = "runend-list";
+
+  const continueButton = document.createElement("button");
+  continueButton.type = "button";
+  continueButton.className = "runend-btn";
+  continueButton.textContent = "Continue";
+  continueButton.addEventListener("click", () => onRunEndContinue());
+
+  card.appendChild(runEndTitle);
+  card.appendChild(runEndList);
+  card.appendChild(continueButton);
+  runEndOverlay.appendChild(card);
+  app.appendChild(runEndOverlay);
+}
+
+export function setRunEndContinueHandler(handler) {
+  onRunEndContinue = typeof handler === "function" ? handler : () => {};
+}
+
+export function showRunEnd(summary) {
+  if (!runEndOverlay) return;
+  if (runEndTitle) runEndTitle.textContent = summaryLabel(summary?.status);
+  if (runEndList) {
+    runEndList.innerHTML = "";
+    for (const line of summaryLines(summary)) {
+      const li = document.createElement("li");
+      li.textContent = line;
+      runEndList.appendChild(li);
+    }
+  }
+  runEndOverlay.classList.remove("is-hidden");
+}
+
+export function hideRunEnd() {
+  if (!runEndOverlay) return;
+  runEndOverlay.classList.add("is-hidden");
 }
 
 export function mountHud({ onUseInventorySlot: onUseSlot, onToggleDebug } = {}) {

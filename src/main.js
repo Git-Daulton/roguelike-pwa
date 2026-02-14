@@ -15,10 +15,14 @@ import {
   mountDebugMenu,
   mountHud,
   mountMenu,
+  mountRunEnd,
   renderDebugState,
   renderHud,
   setInRunUIVisible,
   setQuitHandler,
+  setRunEndContinueHandler,
+  hideRunEnd,
+  showRunEnd,
   showMenu,
   toggleDebugMenu
 } from './ui'
@@ -37,20 +41,42 @@ function quitToMenu() {
   unsubscribeDebug = () => {}
   setInRunUIVisible(false)
   hideDebugMenu()
+  hideRunEnd()
   renderHud(null)
   showMenu()
+}
+
+function continueFromRunEnd() {
+  hideRunEnd()
+  stopGame()
+  unsubscribeSnapshot()
+  unsubscribeDebug()
+  unsubscribeSnapshot = () => {}
+  unsubscribeDebug = () => {}
+  setInRunUIVisible(false)
+  hideDebugMenu()
+  renderHud(null)
+  showMenu()
+}
+
+function handleRunEnd(summary) {
+  runActive = false
+  setInRunUIVisible(false)
+  hideDebugMenu()
+  showRunEnd(summary)
 }
 
 function startRun(runConfig) {
   runActive = true
   hideMenu()
+  hideRunEnd()
   setInRunUIVisible(true)
   hideDebugMenu()
   unsubscribeSnapshot()
   unsubscribeDebug()
   unsubscribeSnapshot = subscribeGameSnapshot(renderHud)
   unsubscribeDebug = subscribeDebugState(renderDebugState)
-  startGame(runConfig, { onQuit: quitToMenu, onRunComplete: quitToMenu })
+  startGame(runConfig, { onQuit: quitToMenu, onRunEnd: handleRunEnd })
 }
 
 window.addEventListener('keydown', (e) => {
@@ -67,13 +93,16 @@ window.addEventListener('keydown', (e) => {
 
 mountMenu({ onStart: startRun })
 mountHud({ onUseInventorySlot: useInventorySlot, onToggleDebug: toggleDebugMenu })
+mountRunEnd({ onContinue: continueFromRunEnd })
 mountDebugMenu({
   onUpdateSetting: updateDebugSettings,
   onSpawnEnemy: spawnEnemyNearPlayer,
   onStairFinder: teleportPlayerNearStairs
 })
 setQuitHandler(quitToMenu)
+setRunEndContinueHandler(continueFromRunEnd)
 setInRunUIVisible(false)
 hideDebugMenu()
+hideRunEnd()
 renderHud(null)
 showMenu()
