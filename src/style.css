@@ -316,6 +316,32 @@ html.touch #controls {
   gap: 6px;
 }
 
+.runend-unlocks {
+  border: 1px solid rgba(110, 220, 160, 0.32);
+  border-radius: 10px;
+  background: rgba(110, 220, 160, 0.08);
+  padding: 10px;
+}
+
+.runend-unlocks.is-hidden {
+  display: none;
+}
+
+.runend-unlocks-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: #bfe8ca;
+}
+
+.runend-unlocks-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #d1e4d7;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .runend-btn {
   min-height: 44px;
   border-radius: 10px;
@@ -468,6 +494,35 @@ html.touch #controls {
 
 .menu-meta-currency {
   color: #9ed7ae;
+}
+
+.menu-achievements {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.menu-achievements-title {
+  margin: 0;
+  font-size: 14px;
+  color: #d8e3ee;
+}
+
+.menu-achievements-line {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #9ed7ae;
+}
+
+.menu-achievements-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #b8c7d7;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .menu-seed-wrap {

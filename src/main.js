@@ -22,6 +22,14 @@ import {
   purchaseUpgrade
 } from './game/meta-upgrades'
 import {
+  ACHIEVEMENTS,
+  evaluateNewUnlocks,
+  getAchievementEffects,
+  normalizeAchievements,
+  normalizeLifetimeStats
+} from './game/achievements'
+import {
+  setAchievementDefinitions,
   hideDebugMenu,
   hideMenu,
   mountDebugMenu,
@@ -33,6 +41,7 @@ import {
   renderHud,
   hideMetaShop,
   showMetaShop,
+  setMenuAchievements,
   setMenuMetaCurrency,
   setMetaShopHandlers,
   setInRunUIVisible,
@@ -50,15 +59,28 @@ let unsubscribeDebug = () => {}
 const loadedMetaState = loadSaveState()
 const metaState = {
   ...loadedMetaState,
-  upgrades: normalizeUpgradeRanks(loadedMetaState.upgrades)
+  upgrades: normalizeUpgradeRanks(loadedMetaState.upgrades),
+  achievements: normalizeAchievements(loadedMetaState.achievements),
+  lifetimeStats: normalizeLifetimeStats(loadedMetaState.lifetimeStats)
 }
 
-if (JSON.stringify(metaState.upgrades) !== JSON.stringify(loadedMetaState.upgrades || {})) {
+if (
+  JSON.stringify(metaState.upgrades) !== JSON.stringify(loadedMetaState.upgrades || {}) ||
+  JSON.stringify(metaState.achievements) !== JSON.stringify(loadedMetaState.achievements || {}) ||
+  JSON.stringify(metaState.lifetimeStats) !== JSON.stringify(loadedMetaState.lifetimeStats || {})
+) {
   persistSaveState(metaState)
 }
 
 function renderMenuMetaCurrency() {
   setMenuMetaCurrency(metaState.metaCurrency)
+}
+
+function renderMenuAchievements() {
+  setMenuAchievements({
+    totalKills: metaState.lifetimeStats.totalKills,
+    unlockedIds: metaState.achievements.unlocked
+  })
 }
 
 function openMetaShop() {
@@ -125,6 +147,20 @@ function continueFromRunEnd() {
 function handleRunEnd(summary) {
   const reward = summary?.status === 'won' ? (summary?.gold ?? 0) : 0
   metaState.metaCurrency += reward
+  const runKills = Number.isFinite(summary?.kills) ? Math.max(0, Math.floor(summary.kills)) : 0
+  metaState.lifetimeStats.totalKills += runKills
+  const newAchievements = evaluateNewUnlocks({
+    previousUnlocked: metaState.achievements.unlocked,
+    totalKills: metaState.lifetimeStats.totalKills
+  })
+  if (newAchievements.length > 0) {
+    metaState.achievements.unlocked = [...metaState.achievements.unlocked, ...newAchievements]
+    metaState.achievements.lastUnlockedAt = new Date().toISOString()
+  }
+  const runSummary = {
+    ...summary,
+    newAchievements
+  }
   const entry = toRunHistoryEntry(summary, reward, new Date().toISOString())
   metaState.runHistory = appendRunHistory(metaState, entry)
   if (!persistSaveState(metaState)) {
@@ -134,11 +170,19 @@ function handleRunEnd(summary) {
   runActive = false
   setInRunUIVisible(false)
   hideDebugMenu()
-  showRunEnd(summary)
+  renderMenuMetaCurrency()
+  renderMenuAchievements()
+  showRunEnd(runSummary)
 }
 
 function startRun(runConfig) {
-  const metaEffects = getUpgradeEffects(metaState.upgrades)
+  const upgradeEffects = getUpgradeEffects(metaState.upgrades)
+  const achievementEffects = getAchievementEffects(metaState.achievements.unlocked)
+  const metaEffects = {
+    bonusMaxHp: (upgradeEffects.bonusMaxHp ?? 0) + (achievementEffects.bonusMaxHp ?? 0),
+    bonusStartingGold: (upgradeEffects.bonusStartingGold ?? 0) + (achievementEffects.bonusStartingGold ?? 0),
+    potionDropChanceBonus: (upgradeEffects.potionDropChanceBonus ?? 0) + (achievementEffects.potionDropChanceBonus ?? 0)
+  }
   runActive = true
   hideMenu()
   hideRunEnd()
@@ -176,10 +220,12 @@ mountDebugMenu({
 setQuitHandler(quitToMenu)
 setRunEndContinueHandler(continueFromRunEnd)
 setMetaShopHandlers({ onBuyUpgrade: buyUpgrade, onClose: closeMetaShop })
+setAchievementDefinitions(ACHIEVEMENTS)
 setInRunUIVisible(false)
 hideDebugMenu()
 hideRunEnd()
 hideMetaShop()
 renderHud(null)
 renderMenuMetaCurrency()
+renderMenuAchievements()
 showMenu()

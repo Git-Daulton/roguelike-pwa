@@ -664,6 +664,7 @@ function buildRunSummary(status) {
     kills: state.kills,
     seed: activeRunConfig?.seed ?? null,
     runLength: activeRunConfig?.runLength ?? null,
+    newAchievements: [],
   };
 }
 

@@ -1,7 +1,12 @@
 import { normalizeUpgradeRanks } from "./meta-upgrades";
+import {
+  evaluateNewUnlocks,
+  normalizeAchievements,
+  normalizeLifetimeStats,
+} from "./achievements";
 
 export const SAVE_KEY = "rlpwa.v1";
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const RUN_HISTORY_LIMIT = 20;
 
 function isPlainObject(value) {
@@ -46,6 +51,15 @@ function normalizeRunHistoryArray(value) {
     .slice(0, RUN_HISTORY_LIMIT);
 }
 
+function sumRunHistoryKills(runHistory) {
+  const safeHistory = normalizeRunHistoryArray(runHistory);
+  let total = 0;
+  for (const entry of safeHistory) {
+    total += toFiniteNonNegativeInt(entry.kills);
+  }
+  return total;
+}
+
 function sanitizeSaveState(state) {
   const src = isPlainObject(state) ? state : {};
   return {
@@ -53,6 +67,8 @@ function sanitizeSaveState(state) {
     metaCurrency: toFiniteNonNegativeInt(src.metaCurrency),
     upgrades: normalizeUpgradeRanks(src.upgrades),
     runHistory: normalizeRunHistoryArray(src.runHistory),
+    achievements: normalizeAchievements(src.achievements),
+    lifetimeStats: normalizeLifetimeStats(src.lifetimeStats),
   };
 }
 
@@ -62,12 +78,35 @@ export function createDefaultSaveState() {
     metaCurrency: 0,
     upgrades: normalizeUpgradeRanks({}),
     runHistory: [],
+    achievements: normalizeAchievements({}),
+    lifetimeStats: normalizeLifetimeStats({}),
   };
 }
 
 function migrateSaveState(raw) {
   if (!isPlainObject(raw)) return createDefaultSaveState();
   switch (raw.version) {
+    case 1: {
+      const runHistory = normalizeRunHistoryArray(raw.runHistory);
+      const totalKills = sumRunHistoryKills(runHistory);
+      const bootstrappedUnlocks = evaluateNewUnlocks({
+        previousUnlocked: [],
+        totalKills,
+      });
+      return sanitizeSaveState({
+        version: SAVE_VERSION,
+        metaCurrency: toFiniteNonNegativeInt(raw.metaCurrency),
+        upgrades: normalizeUpgradeRanks(raw.upgrades),
+        runHistory,
+        achievements: {
+          unlocked: bootstrappedUnlocks,
+          lastUnlockedAt: null,
+        },
+        lifetimeStats: {
+          totalKills,
+        },
+      });
+    }
     case SAVE_VERSION:
       return sanitizeSaveState(raw);
     default:

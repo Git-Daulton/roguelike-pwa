@@ -10,6 +10,8 @@ let seedInput = null;
 let startButton = null;
 let summaryLine = null;
 let menuMetaLine = null;
+let menuAchievementsLine = null;
+let menuAchievementsList = null;
 let onStart = () => {};
 let onOpenShop = () => {};
 let onQuit = () => {};
@@ -17,6 +19,8 @@ let quitButton = null;
 let runEndOverlay = null;
 let runEndTitle = null;
 let runEndList = null;
+let runEndNewAchievementsWrap = null;
+let runEndNewAchievementsList = null;
 let onRunEndContinue = () => {};
 let shopOverlay = null;
 let shopCurrencyLine = null;
@@ -36,6 +40,7 @@ let debugForm = null;
 let onUpdateDebugSettings = () => {};
 let onSpawnEnemy = () => {};
 let onStairFinder = () => {};
+let achievementDefinitionsById = new Map();
 
 function normalizeSeed(value) {
   const trimmed = String(value || "").trim();
@@ -156,6 +161,23 @@ export function mountMenu({ onStart: onStartCb, onOpenShop: onOpenShopCb } = {})
     menuMetaLine.className = "menu-selection-summary menu-meta-currency";
     menuMetaLine.textContent = "Meta Currency: 0";
 
+    const achievementsBlock = document.createElement("section");
+    achievementsBlock.className = "menu-achievements";
+    const achievementsTitle = document.createElement("h2");
+    achievementsTitle.className = "menu-achievements-title";
+    achievementsTitle.textContent = "Achievements";
+    menuAchievementsLine = document.createElement("p");
+    menuAchievementsLine.className = "menu-achievements-line";
+    menuAchievementsLine.textContent = "Total Kills: 0";
+    menuAchievementsList = document.createElement("ul");
+    menuAchievementsList.className = "menu-achievements-list";
+    const empty = document.createElement("li");
+    empty.textContent = "No unlocks yet.";
+    menuAchievementsList.appendChild(empty);
+    achievementsBlock.appendChild(achievementsTitle);
+    achievementsBlock.appendChild(menuAchievementsLine);
+    achievementsBlock.appendChild(menuAchievementsList);
+
     const seedWrap = document.createElement("label");
     seedWrap.className = "menu-seed-wrap";
     seedWrap.textContent = "Seed (optional)";
@@ -184,6 +206,7 @@ export function mountMenu({ onStart: onStartCb, onOpenShop: onOpenShopCb } = {})
     card.appendChild(runButtons);
     card.appendChild(summaryLine);
     card.appendChild(menuMetaLine);
+    card.appendChild(achievementsBlock);
     card.appendChild(seedWrap);
     card.appendChild(startButton);
     card.appendChild(shopButton);
@@ -205,6 +228,42 @@ export function setMenuMetaCurrency(value) {
   if (!menuMetaLine) return;
   const amount = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
   menuMetaLine.textContent = `Meta Currency: ${amount}`;
+}
+
+export function setAchievementDefinitions(definitions = []) {
+  achievementDefinitionsById = new Map();
+  if (!Array.isArray(definitions)) return;
+  for (const definition of definitions) {
+    if (!definition || typeof definition.id !== "string") continue;
+    achievementDefinitionsById.set(definition.id, definition);
+  }
+}
+
+export function setMenuAchievements({ totalKills = 0, unlockedIds = [] } = {}) {
+  if (!menuAchievementsLine || !menuAchievementsList) return;
+
+  const kills = Number.isFinite(totalKills) ? Math.max(0, Math.floor(totalKills)) : 0;
+  menuAchievementsLine.textContent = `Total Kills: ${kills}`;
+  menuAchievementsList.innerHTML = "";
+
+  const safeIds = Array.isArray(unlockedIds) ? unlockedIds : [];
+  if (safeIds.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "No unlocks yet.";
+    menuAchievementsList.appendChild(li);
+    return;
+  }
+
+  for (const id of safeIds) {
+    const definition = achievementDefinitionsById.get(id);
+    const li = document.createElement("li");
+    if (!definition) {
+      li.textContent = id;
+    } else {
+      li.textContent = `${definition.label}: ${definition.effectText}`;
+    }
+    menuAchievementsList.appendChild(li);
+  }
 }
 
 export function setQuitHandler(handler) {
@@ -265,6 +324,16 @@ export function mountRunEnd({ onContinue } = {}) {
   runEndList = document.createElement("ul");
   runEndList.className = "runend-list";
 
+  runEndNewAchievementsWrap = document.createElement("section");
+  runEndNewAchievementsWrap.className = "runend-unlocks is-hidden";
+  const runEndNewAchievementsTitle = document.createElement("h3");
+  runEndNewAchievementsTitle.className = "runend-unlocks-title";
+  runEndNewAchievementsTitle.textContent = "New Unlocks";
+  runEndNewAchievementsList = document.createElement("ul");
+  runEndNewAchievementsList.className = "runend-unlocks-list";
+  runEndNewAchievementsWrap.appendChild(runEndNewAchievementsTitle);
+  runEndNewAchievementsWrap.appendChild(runEndNewAchievementsList);
+
   const continueButton = document.createElement("button");
   continueButton.type = "button";
   continueButton.className = "runend-btn";
@@ -273,6 +342,7 @@ export function mountRunEnd({ onContinue } = {}) {
 
   card.appendChild(runEndTitle);
   card.appendChild(runEndList);
+  card.appendChild(runEndNewAchievementsWrap);
   card.appendChild(continueButton);
   runEndOverlay.appendChild(card);
   app.appendChild(runEndOverlay);
@@ -291,6 +361,25 @@ export function showRunEnd(summary) {
       const li = document.createElement("li");
       li.textContent = line;
       runEndList.appendChild(li);
+    }
+  }
+  if (runEndNewAchievementsWrap && runEndNewAchievementsList) {
+    runEndNewAchievementsList.innerHTML = "";
+    const unlockedIds = Array.isArray(summary?.newAchievements) ? summary.newAchievements : [];
+    if (unlockedIds.length > 0) {
+      for (const id of unlockedIds) {
+        const definition = achievementDefinitionsById.get(id);
+        const li = document.createElement("li");
+        if (!definition) {
+          li.textContent = id;
+        } else {
+          li.textContent = `${definition.label}: ${definition.effectText}`;
+        }
+        runEndNewAchievementsList.appendChild(li);
+      }
+      runEndNewAchievementsWrap.classList.remove("is-hidden");
+    } else {
+      runEndNewAchievementsWrap.classList.add("is-hidden");
     }
   }
   runEndOverlay.classList.remove("is-hidden");
